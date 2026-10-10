@@ -8,8 +8,12 @@ import { getAllBuildings } from "../../services/buildingService.js";
 import { createRoom, deleteRoom, getAllRooms, updateRoom } from "../../services/roomService.js";
 import useAutoDismiss from "../../hooks/useAutoDismiss.js";
 
-const EMPTY_FORM = { buildingId: "", roomNumber: "", sharingType: "SINGLE", roomStatus: "AVAILABLE" };
+const EMPTY_FORM = { buildingId: "", roomNumber: "", sharingType: "SINGLE", roomType: "NON_AC", roomStatus: "AVAILABLE" };
 const SHARING_OPTIONS = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR"].map((value) => ({ value, label: `${value.charAt(0)}${value.slice(1).toLowerCase()} Sharing` }));
+const ROOM_TYPE_OPTIONS = [
+  { value: "AC", label: "AC" },
+  { value: "NON_AC", label: "Non-AC" },
+];
 const STATUS_OPTIONS = ["AVAILABLE", "OCCUPIED", "UNDER_REPAIR", "BLOCKED"].map((value) => ({ value, label: value.replaceAll("_", " ") }));
 const INPUT_CLASS = "w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm outline-none transition-all duration-200 hover:border-stone-400 focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100";
 
@@ -73,7 +77,7 @@ export default function Rooms() {
 
   const openEdit = (room) => {
     setEditingId(room.roomId);
-    setForm({ buildingId: room.buildingId, roomNumber: room.roomNumber, sharingType: room.sharingType, roomStatus: room.roomStatus });
+    setForm({ buildingId: room.buildingId, roomNumber: room.roomNumber, sharingType: room.sharingType, roomType: room.roomType || "NON_AC", roomStatus: room.roomStatus });
     setOpen(true);
     setError("");
   };
@@ -133,7 +137,8 @@ export default function Rooms() {
                 <h3 className="text-2xl font-black tracking-tighter">Room {room.roomNumber}</h3>
                 <span className="rounded-full border border-stone-200 bg-stone-100 px-3 py-1.5 text-[7px] font-bold uppercase text-stone-700">{room.roomStatus}</span>
               </div>
-              <p className="mt-3 text-sm text-stone-500">{room.sharingType} sharing · Capacity {room.capacity}</p>
+              <p className="mt-3 text-sm text-stone-500">{room.sharingType} sharing · Capacity {room.capacity} ·{" "}
+                {room.roomType === "AC" ? "AC" : "Non-AC"}</p>
               <div className="mt-7 flex gap-3">
                 <ActionButton onClick={() => openEdit(room)} className="flex-1">Edit</ActionButton>
                 <ActionButton onClick={() => remove(room)} disabled={processingId === room.roomId} variant="danger" className="flex-1">{processingId === room.roomId ? "Deleting..." : "Delete"}</ActionButton>
@@ -151,6 +156,17 @@ export default function Rooms() {
               <PremiumSelect label="Building" value={form.buildingId} options={formBuildingOptions} onChange={(value) => setForm((current) => ({ ...current, buildingId: value }))} placeholder="Select building" />
               <input value={form.roomNumber} onChange={(event) => setForm((current) => ({ ...current, roomNumber: event.target.value }))} placeholder="Room number" className={INPUT_CLASS} />
               <PremiumSelect label="Sharing Type" value={form.sharingType} options={SHARING_OPTIONS} onChange={(value) => setForm((current) => ({ ...current, sharingType: value }))} />
+              <PremiumSelect
+                label="Room Type"
+                value={form.roomType}
+                options={ROOM_TYPE_OPTIONS}
+                onChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    roomType: value
+                  }))
+                }
+              />
               <PremiumSelect label="Room Status" value={form.roomStatus} options={STATUS_OPTIONS} onChange={(value) => setForm((current) => ({ ...current, roomStatus: value }))} />
               <div className="flex justify-end gap-3 pt-2"><ActionButton onClick={() => setOpen(false)}>Cancel</ActionButton><ActionButton type="submit" disabled={saving} variant="primary">{saving ? "Saving..." : "Save Room"}</ActionButton></div>
             </form>

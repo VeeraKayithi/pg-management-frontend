@@ -102,7 +102,7 @@ export default function Communications() {
     if (form.title.trim().length > 150) return "Title must not exceed 150 characters.";
     if (form.message.trim().length > 2000) return "Message must not exceed 2000 characters.";
     if (channels.length === 0) return "Select at least one delivery channel.";
-    if (!preview?.activeTenantCount) return "No active Tenants are available.";
+    if (!preview?.eligibleTenantCount) return "No eligible Tenants with active portal accounts are available.";
     return "";
   };
 
@@ -260,7 +260,7 @@ export default function Communications() {
       <div className="mx-auto max-w-7xl">
         <AdminHeader
           title="Communication Center"
-          subtitle="Send one operational announcement to every active Tenant."
+          subtitle="Send one operational announcement to every eligible active Tenant."
         />
 
         {(error || success) && (
@@ -339,13 +339,13 @@ export default function Communications() {
           <section className="space-y-6">
             <div className="rounded-[2rem] border border-stone-200 bg-stone-900 p-6 text-white shadow-sm sm:p-8">
               <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">Recipient Preview</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tighter">All active Tenants</h2>
+              <h2 className="mt-2 text-3xl font-black tracking-tighter">Eligible portal Tenants</h2>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 {[
                   ["Active Tenants", preview?.activeTenantCount ?? 0],
+                  ["Eligible Tenants", preview?.eligibleTenantCount ?? 0],
                   ["In-App Eligible", preview?.inAppEligibleCount ?? 0],
-                  ["Email Eligible", preview?.emailEligibleCount ?? 0],
-                  ["Possible Skips", (preview?.inAppSkippedCount ?? 0) + (preview?.emailSkippedCount ?? 0)],
+                  ["Without Portal", preview?.tenantsWithoutPortalAccount ?? 0],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl bg-white/10 p-4">
                     <p className="text-2xl font-black">{value}</p>
@@ -358,7 +358,8 @@ export default function Communications() {
             <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
               <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">Delivery Rules</p>
               <ul className="mt-4 space-y-3 text-sm leading-relaxed text-stone-600">
-                <li>Only Tenants with status ACTIVE are selected.</li>
+                <li>Only Tenants with status ACTIVE are considered.</li>
+                <li>Tenants without a portal account are excluded.</li>
                 <li>In-app delivery requires an active linked portal account.</li>
                 <li>Email delivery requires an active account and verified email.</li>
                 <li>One failed delivery does not stop other recipients.</li>
@@ -439,8 +440,13 @@ export default function Communications() {
               </p>
 
               <h2 className="mt-2 text-3xl font-black tracking-tighter">
-                Send to {preview?.activeTenantCount ?? 0} active Tenants?
+                Send to {preview?.eligibleTenantCount ?? 0} eligible Tenants?
               </h2>
+              <p className="mt-2 text-sm leading-relaxed text-stone-500">
+                {preview?.activeTenantCount ?? 0} active Tenant records were found.{" "}
+                {preview?.tenantsWithoutPortalAccount ?? 0} do not have a portal
+                account and will be skipped.
+              </p>
 
               <div className="mt-5 rounded-2xl bg-stone-50 p-5">
                 <p className="font-black">

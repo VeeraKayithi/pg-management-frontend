@@ -19,7 +19,6 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (event) => {
-    debugger;
     event.preventDefault();
     setError("");
 

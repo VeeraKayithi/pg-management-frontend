@@ -1,13 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import {
-  AnimatePresence,
-  motion,
-} from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -26,54 +18,19 @@ const TABS = [
 ];
 
 const PAGE_VARIANTS = {
-  hidden: {
-    opacity: 0,
-    y: 18,
-    scale: 0.995,
-  },
+  hidden: { opacity: 0, y: 18, scale: 0.995 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: {
-      duration: 0.4,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const CONTENT_VARIANTS = {
-  hidden: {
-    opacity: 0,
-    y: 10,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.28,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-    transition: {
-      duration: 0.16,
-    },
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
 function formatDate(value) {
-  if (!value) {
-    return "Unknown time";
-  }
-
+  if (!value) return "Unknown time";
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
@@ -84,33 +41,71 @@ function formatDate(value) {
   }).format(date);
 }
 
-function getSeverityStyle(severity) {
-  if (severity === "ERROR") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
+function getSeverityPresentation(severity) {
+  switch (severity?.toUpperCase()) {
+    case "WARNING":
+      return {
+        label: "Attention",
+        card: "border-amber-200 bg-amber-50/40",
+        badge: "border-amber-300 bg-amber-100 text-amber-800",
+        accent: "bg-amber-500",
+        iconBox: "bg-amber-100 text-amber-700",
+        icon: "!",
+        noticeTitle: "Attention required",
+        noticeText: "Please review this notice and plan accordingly.",
+        notice: "border-amber-200 bg-amber-50 text-amber-800",
+      };
 
-  if (severity === "WARNING") {
-    return "border-stone-300 bg-stone-100 text-stone-800";
-  }
+    case "URGENT":
+      return {
+        label: "Urgent",
+        card: "border-orange-300 bg-orange-50/50",
+        badge: "border-orange-300 bg-orange-100 text-orange-800",
+        accent: "bg-orange-500",
+        iconBox: "bg-orange-100 text-orange-700",
+        icon: "!",
+        noticeTitle: "Immediate attention",
+        noticeText: "Please review this urgent notice as soon as possible.",
+        notice: "border-orange-200 bg-orange-50 text-orange-800",
+      };
 
-  return "border-slate-200 bg-slate-50 text-slate-700";
+    case "ERROR":
+      return {
+        label: "Error",
+        card: "border-rose-300 bg-rose-50/50",
+        badge: "border-rose-300 bg-rose-100 text-rose-800",
+        accent: "bg-rose-500",
+        iconBox: "bg-rose-100 text-rose-700",
+        icon: "×",
+        noticeTitle: "Action could not be completed",
+        noticeText: "Review the details or contact the PG administration.",
+        notice: "border-rose-200 bg-rose-50 text-rose-800",
+      };
+
+    default:
+      return {
+        label: "Information",
+        card: "border-slate-200 bg-white",
+        badge: "border-slate-200 bg-slate-50 text-slate-700",
+        accent: "bg-slate-400",
+        iconBox: "bg-slate-100 text-slate-600",
+        icon: "i",
+        noticeTitle: "",
+        noticeText: "",
+        notice: "",
+      };
+  }
 }
 
 function getErrorMessage(error, fallback) {
-  const responseData = error.response?.data;
+  const data = error.response?.data;
+  if (typeof data?.message === "string") return data.message;
 
-  if (typeof responseData?.message === "string") {
-    return responseData.message;
-  }
-
-  if (responseData && typeof responseData === "object") {
-    const messages = Object.values(responseData).filter(
+  if (data && typeof data === "object") {
+    const messages = Object.values(data).filter(
       (value) => typeof value === "string"
     );
-
-    if (messages.length > 0) {
-      return messages.join(" ");
-    }
+    if (messages.length > 0) return messages.join(" ");
   }
 
   return fallback;
@@ -119,18 +114,12 @@ function getErrorMessage(error, fallback) {
 export default function Notifications() {
   const navigate = useNavigate();
   const hasInitialized = useRef(false);
+  const skipNextTabLoad = useRef(true);
 
   const role = getRole()?.replace("ROLE_", "").toUpperCase();
-
   const dashboardPath =
-    role === "ADMIN"
-      ? "/admin/dashboard"
-      : "/tenant/dashboard";
+    role === "ADMIN" ? "/admin/dashboard" : "/tenant/dashboard";
 
-  /*
-   * The page opens on All because unread notifications
-   * are automatically marked as read when this page opens.
-   */
   const [activeTab, setActiveTab] = useState("all");
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +132,6 @@ export default function Notifications() {
       setError("");
 
       let response;
-
       if (activeTab === "unread") {
         response = await getMyUnreadNotifications();
       } else if (activeTab === "dismissed") {
@@ -152,50 +140,26 @@ export default function Notifications() {
         response = await getMyNotifications();
       }
 
-      setNotifications(
-        Array.isArray(response) ? response : []
-      );
+      setNotifications(Array.isArray(response) ? response : []);
     } catch (requestError) {
-      setError(
-        getErrorMessage(
-          requestError,
-          "Unable to load notifications."
-        )
-      );
+      setError(getErrorMessage(requestError, "Unable to load notifications."));
     } finally {
       setLoading(false);
     }
   }, [activeTab]);
 
-  /*
-   * Opening the Notification Center means the recipient
-   * has seen the notifications. Mark all current unread
-   * notifications as read, update the bell immediately,
-   * and keep the notifications visible under All.
-   */
   useEffect(() => {
-    if (hasInitialized.current) {
-      return;
-    }
-
+    if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    const initializeNotificationCenter = async () => {
+    const initialize = async () => {
       try {
         setLoading(true);
         setError("");
-
         await markAllNotificationsAsRead();
-
-        window.dispatchEvent(
-          new CustomEvent("notifications:updated")
-        );
-
+        window.dispatchEvent(new CustomEvent("notifications:updated"));
         const response = await getMyNotifications();
-
-        setNotifications(
-          Array.isArray(response) ? response : []
-        );
+        setNotifications(Array.isArray(response) ? response : []);
       } catch (requestError) {
         setError(
           getErrorMessage(
@@ -208,74 +172,38 @@ export default function Notifications() {
       }
     };
 
-    initializeNotificationCenter();
+    initialize();
   }, []);
 
-  /*
-   * This effect is only for user-triggered tab changes.
-   * Initialization is handled separately above.
-   */
   useEffect(() => {
-    if (!hasInitialized.current) {
+    if (!hasInitialized.current) return;
+    if (skipNextTabLoad.current) {
+      skipNextTabLoad.current = false;
       return;
     }
-
     loadNotifications();
   }, [activeTab, loadNotifications]);
 
-  const changeTab = (tabValue) => {
-    if (tabValue !== activeTab) {
-      setActiveTab(tabValue);
-    }
-  };
-
-  const returnToDashboard = () => {
-    if (document.startViewTransition) {
-      document.startViewTransition(() => {
-        navigate(dashboardPath);
-      });
-      return;
-    }
-
-    navigate(dashboardPath);
-  };
+  const returnToDashboard = () => navigate(dashboardPath);
 
   const openNotification = async (notification) => {
     try {
       setProcessingId(notification.notificationId);
       setError("");
 
-      /*
-       * This is kept as a safety check for a notification
-       * that arrives after the page was initialized.
-       */
       if (!notification.read) {
-        await markNotificationAsRead(
-          notification.notificationId
-        );
-
-        window.dispatchEvent(
-          new CustomEvent("notifications:updated")
-        );
+        await markNotificationAsRead(notification.notificationId);
+        window.dispatchEvent(new CustomEvent("notifications:updated"));
       }
 
       if (notification.deepLink) {
-        if (document.startViewTransition) {
-          document.startViewTransition(() => {
-            navigate(notification.deepLink);
-          });
-        } else {
-          navigate(notification.deepLink);
-        }
+        navigate(notification.deepLink);
       } else {
         await loadNotifications();
       }
     } catch (requestError) {
       setError(
-        getErrorMessage(
-          requestError,
-          "Unable to open the notification."
-        )
+        getErrorMessage(requestError, "Unable to open the notification.")
       );
     } finally {
       setProcessingId(null);
@@ -288,33 +216,18 @@ export default function Notifications() {
     try {
       setProcessingId(notificationId);
       setError("");
-
-      /*
-       * Remove the item locally first. AnimatePresence handles
-       * the exit animation and Framer Motion layout smoothly
-       * repositions the remaining cards without a full reload.
-       */
-      setNotifications((currentNotifications) =>
-        currentNotifications.filter(
-          (notification) =>
-            notification.notificationId !== notificationId
+      setNotifications((current) =>
+        current.filter(
+          (notification) => notification.notificationId !== notificationId
         )
       );
 
       await dismissNotification(notificationId);
-
-      window.dispatchEvent(
-        new CustomEvent("notifications:updated")
-      );
+      window.dispatchEvent(new CustomEvent("notifications:updated"));
     } catch (requestError) {
-      /* Restore the list when the backend operation fails. */
       setNotifications(previousNotifications);
-
       setError(
-        getErrorMessage(
-          requestError,
-          "Unable to dismiss the notification."
-        )
+        getErrorMessage(requestError, "Unable to dismiss the notification.")
       );
     } finally {
       setProcessingId(null);
@@ -331,33 +244,16 @@ export default function Notifications() {
       <div className="mx-auto max-w-5xl">
         <header className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <motion.button
-                type="button"
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={returnToDashboard}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 transition hover:border-stone-400 hover:bg-white hover:shadow-md"
-                aria-label="Return to dashboard"
-              >
-                <img
-                  src="/nandu-logo.svg"
-                  alt="Nandu PG"
-                  className="h-7 w-7 object-contain"
-                />
-              </motion.button>
-
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
-                  Notification Center
-                </p>
-                <h1 className="mt-1 text-3xl font-black tracking-tighter">
-                  Your notifications
-                </h1>
-                <p className="mt-1 text-sm text-stone-500">
-                  Opening this page automatically marks new notifications as read.
-                </p>
-              </div>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
+                Notification Center
+              </p>
+              <h1 className="mt-1 text-3xl font-black tracking-tighter">
+                Your notifications
+              </h1>
+              <p className="mt-1 text-sm text-stone-500">
+                Warnings request attention. Urgent notices require prompt review.
+              </p>
             </div>
 
             <motion.button
@@ -365,7 +261,7 @@ export default function Notifications() {
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.97 }}
               onClick={returnToDashboard}
-              className="rounded-full border border-stone-300 bg-white px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest transition hover:border-stone-900 hover:shadow-md"
+              className="rounded-full border border-stone-300 px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest hover:border-stone-900"
             >
               Dashboard
             </motion.button>
@@ -373,14 +269,14 @@ export default function Notifications() {
         </header>
 
         <section className="mt-6 flex flex-col gap-4 rounded-[2rem] border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <nav className="app-scrollbar-horizontal flex gap-1 overflow-x-auto rounded-full bg-stone-100 p-1">
+          <nav className="flex gap-1 overflow-x-auto rounded-full bg-stone-100 p-1">
             {TABS.map((tab) => (
               <motion.button
                 key={tab.value}
                 type="button"
                 whileTap={{ scale: 0.96 }}
-                onClick={() => changeTab(tab.value)}
-                className={`relative shrink-0 rounded-full px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest transition-colors duration-200 ${activeTab === tab.value
+                onClick={() => setActiveTab(tab.value)}
+                className={`relative shrink-0 rounded-full px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest ${activeTab === tab.value
                     ? "text-white"
                     : "text-stone-500 hover:bg-white hover:text-stone-900"
                   }`}
@@ -388,29 +284,20 @@ export default function Notifications() {
                 {activeTab === tab.value && (
                   <motion.span
                     layoutId="notification-active-tab"
-                    className="absolute inset-0 rounded-full bg-stone-900 shadow-sm"
-                    transition={{
-                      type: "spring",
-                      stiffness: 420,
-                      damping: 34,
-                    }}
+                    className="absolute inset-0 rounded-full bg-stone-900"
                   />
                 )}
-
-                <span className="relative z-10">
-                  {tab.label}
-                </span>
+                <span className="relative z-10">{tab.label}</span>
               </motion.button>
             ))}
           </nav>
 
           <motion.button
             type="button"
-            whileHover={{ y: -2 }}
             whileTap={{ scale: 0.97 }}
             onClick={loadNotifications}
             disabled={loading}
-            className="rounded-full bg-stone-900 px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest text-white transition hover:bg-stone-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full bg-stone-900 px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest text-white disabled:opacity-60"
           >
             {loading ? "Refreshing..." : "Refresh"}
           </motion.button>
@@ -425,94 +312,108 @@ export default function Notifications() {
           </div>
         )}
 
-        <AnimatePresence mode="wait">
-          <motion.section
-            key={activeTab}
-            variants={CONTENT_VARIANTS}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="mt-6"
-          >
-            {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((item) => (
-                  <div
-                    key={item}
-                    className="h-44 animate-pulse rounded-[2rem] bg-white"
-                  />
-                ))}
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center shadow-sm">
-                <h2 className="text-2xl font-black tracking-tighter">
-                  No {activeTab} notifications
-                </h2>
-                <p className="mt-2 text-sm text-stone-500">
-                  New updates will appear when a relevant event occurs.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <AnimatePresence>
-                  {notifications.map((notification, index) => (
+        <section className="mt-6">
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-44 animate-pulse rounded-[2rem] bg-white"
+                />
+              ))}
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center shadow-sm">
+              <h2 className="text-2xl font-black tracking-tighter">
+                No {activeTab} notifications
+              </h2>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <AnimatePresence>
+                {notifications.map((notification, index) => {
+                  const style = getSeverityPresentation(notification.severity);
+                  const needsAttention = ["WARNING", "URGENT", "ERROR"].includes(
+                    notification.severity?.toUpperCase()
+                  );
+
+                  return (
                     <motion.article
                       key={notification.notificationId}
                       layout
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0, y: 12, scale: 0.99 }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        scale:
+                          notification.severity?.toUpperCase() === "WARNING"
+                            ? [0.99, 1.01, 1]
+                            : 1,
+                      }}
                       exit={{
                         opacity: 0,
                         x: 36,
                         scale: 0.98,
                         height: 0,
                         marginBottom: 0,
-                        transition: {
-                          duration: 0.24,
-                          ease: [0.4, 0, 1, 1],
-                        },
                       }}
                       transition={{
+                        delay: index * 0.025,
+                        duration: 0.25,
                         layout: {
                           type: "spring",
                           stiffness: 380,
                           damping: 34,
                         },
-                        opacity: {
-                          delay: index * 0.025,
-                          duration: 0.2,
-                        },
-                        y: {
-                          delay: index * 0.025,
-                          duration: 0.2,
-                        },
                       }}
-                      whileHover={{ y: -2 }}
-                      className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+                      className={`relative overflow-hidden rounded-[2rem] border p-6 shadow-sm transition-shadow hover:shadow-md ${style.card}`}
                     >
+                      <div
+                        className={`absolute inset-y-0 left-0 w-1.5 ${style.accent}`}
+                      />
+
                       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1 pl-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <span
-                              className={`rounded-full border px-3 py-1 text-[7px] font-bold uppercase tracking-widest ${getSeverityStyle(
-                                notification.severity
-                              )}`}
+                              className={`rounded-full border px-3 py-1 text-[7px] font-bold uppercase tracking-widest ${style.badge}`}
                             >
-                              {notification.severity}
+                              {style.label}
                             </span>
-
                             <span className="text-[8px] font-bold uppercase tracking-widest text-stone-400">
                               {notification.sourceModule}
                             </span>
                           </div>
 
-                          <h2 className="mt-4 text-2xl font-black tracking-tighter">
-                            {notification.title}
-                          </h2>
+                          <div className="mt-4 flex items-start gap-3">
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${style.iconBox}`}
+                            >
+                              {style.icon}
+                            </span>
+                            <div>
+                              <h2 className="text-2xl font-black tracking-tighter">
+                                {notification.title}
+                              </h2>
+                              <p className="mt-2 text-sm leading-relaxed text-stone-600">
+                                {notification.message}
+                              </p>
+                            </div>
+                          </div>
 
-                          <p className="mt-2 text-sm leading-relaxed text-stone-600">
-                            {notification.message}
-                          </p>
+                          {needsAttention && (
+                            <div
+                              className={`mt-5 rounded-2xl border p-4 ${style.notice}`}
+                            >
+                              <p className="text-[9px] font-black uppercase tracking-widest">
+                                {style.noticeTitle}
+                              </p>
+                              <p className="mt-1 text-xs leading-relaxed">
+                                {style.noticeText}
+                              </p>
+                            </div>
+                          )}
 
                           <p className="mt-4 text-xs text-stone-400">
                             {formatDate(notification.createdAt)}
@@ -523,39 +424,28 @@ export default function Notifications() {
                           {!notification.dismissed && (
                             <motion.button
                               type="button"
-                              whileHover={{ y: -1 }}
                               whileTap={{ scale: 0.96 }}
                               disabled={
-                                processingId ===
-                                notification.notificationId
+                                processingId === notification.notificationId
                               }
                               onClick={() =>
-                                dismiss(
-                                  notification.notificationId
-                                )
+                                dismiss(notification.notificationId)
                               }
-                              className="rounded-full border border-stone-900 bg-white px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest text-stone-900 transition hover:bg-stone-900 hover:text-white disabled:opacity-50"
+                              className="rounded-full border border-stone-900 px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest hover:bg-stone-900 hover:text-white disabled:opacity-50"
                             >
-                              {processingId ===
-                                notification.notificationId
-                                ? "Updating..."
-                                : "Dismiss"}
+                              Dismiss
                             </motion.button>
                           )}
 
                           {notification.deepLink && (
                             <motion.button
                               type="button"
-                              whileHover={{ y: -1 }}
                               whileTap={{ scale: 0.96 }}
                               disabled={
-                                processingId ===
-                                notification.notificationId
+                                processingId === notification.notificationId
                               }
-                              onClick={() =>
-                                openNotification(notification)
-                              }
-                              className="rounded-full bg-stone-900 px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest text-white transition hover:bg-stone-800 disabled:opacity-50"
+                              onClick={() => openNotification(notification)}
+                              className="rounded-full bg-stone-900 px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
                             >
                               View
                             </motion.button>
@@ -563,12 +453,12 @@ export default function Notifications() {
                         </div>
                       </div>
                     </motion.article>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-          </motion.section>
-        </AnimatePresence>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </section>
       </div>
     </motion.main>
   );
