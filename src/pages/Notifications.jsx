@@ -116,9 +116,20 @@ export default function Notifications() {
   const hasInitialized = useRef(false);
   const skipNextTabLoad = useRef(true);
 
-  const role = getRole()?.replace("ROLE_", "").toUpperCase();
+  const role = getRole()
+    ?.replace("ROLE_", "")
+    ?.toUpperCase();
+
+  const managementRoles = [
+    "ADMIN",
+    "BUILDING_ADMIN",
+    "SUPERVISOR",
+  ];
+
   const dashboardPath =
-    role === "ADMIN" ? "/admin/dashboard" : "/tenant/dashboard";
+    managementRoles.includes(role)
+      ? "/admin/dashboard"
+      : "/tenant/dashboard";
 
   const [activeTab, setActiveTab] = useState("all");
   const [notifications, setNotifications] = useState([]);
@@ -277,8 +288,8 @@ export default function Notifications() {
                 whileTap={{ scale: 0.96 }}
                 onClick={() => setActiveTab(tab.value)}
                 className={`relative shrink-0 rounded-full px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest ${activeTab === tab.value
-                    ? "text-white"
-                    : "text-stone-500 hover:bg-white hover:text-stone-900"
+                  ? "text-white"
+                  : "text-stone-500 hover:bg-white hover:text-stone-900"
                   }`}
               >
                 {activeTab === tab.value && (

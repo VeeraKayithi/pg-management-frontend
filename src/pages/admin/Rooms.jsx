@@ -7,6 +7,7 @@ import PremiumSelect from "../../components/admin/PremiumSelect.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
 import { createRoom, deleteRoom, getAllRooms, updateRoom } from "../../services/roomService.js";
 import useAutoDismiss from "../../hooks/useAutoDismiss.js";
+import { getRole } from "../../services/authService.js";
 
 const EMPTY_FORM = { buildingId: "", roomNumber: "", sharingType: "SINGLE", roomType: "NON_AC", roomStatus: "AVAILABLE" };
 const SHARING_OPTIONS = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR"].map((value) => ({ value, label: `${value.charAt(0)}${value.slice(1).toLowerCase()} Sharing` }));
@@ -29,6 +30,13 @@ export default function Rooms() {
   const [processingId, setProcessingId] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const role = getRole()
+    ?.replace("ROLE_", "")
+    ?.toUpperCase();
+
+  const canManageRooms =
+    role === "ADMIN" ||
+    role === "BUILDING_ADMIN";
 
   const clearError = useCallback(() => {
     setError("");
@@ -122,7 +130,15 @@ export default function Rooms() {
         <section className="mt-7 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <PremiumSelect label="Building" value={buildingFilter} options={buildingOptions} onChange={setBuildingFilter} />
-            <ActionButton onClick={openCreate} variant="primary" disabled={buildings.length === 0}>Add Room</ActionButton>
+            {canManageRooms && (
+              <ActionButton
+                onClick={openCreate}
+                variant="primary"
+                disabled={buildings.length === 0}
+              >
+                Add Room
+              </ActionButton>
+            )}
           </div>
         </section>
 
@@ -139,10 +155,27 @@ export default function Rooms() {
               </div>
               <p className="mt-3 text-sm text-stone-500">{room.sharingType} sharing · Capacity {room.capacity} ·{" "}
                 {room.roomType === "AC" ? "AC" : "Non-AC"}</p>
-              <div className="mt-7 flex gap-3">
-                <ActionButton onClick={() => openEdit(room)} className="flex-1">Edit</ActionButton>
-                <ActionButton onClick={() => remove(room)} disabled={processingId === room.roomId} variant="danger" className="flex-1">{processingId === room.roomId ? "Deleting..." : "Delete"}</ActionButton>
-              </div>
+              {canManageRooms && (
+                <div className="mt-7 flex gap-3">
+                  <ActionButton
+                    onClick={() => openEdit(room)}
+                    className="flex-1"
+                  >
+                    Edit
+                  </ActionButton>
+
+                  <ActionButton
+                    onClick={() => remove(room)}
+                    disabled={processingId === room.roomId}
+                    variant="danger"
+                    className="flex-1"
+                  >
+                    {processingId === room.roomId
+                      ? "Deleting..."
+                      : "Delete"}
+                  </ActionButton>
+                </div>
+              )}
             </motion.article>
           ))}
         </section>

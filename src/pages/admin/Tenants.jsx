@@ -8,6 +8,7 @@ import { getAllRooms } from "../../services/roomService.js";
 import { createTenant, getAllTenants, markTenantAsLeft, updateTenant, } from "../../services/tenantService.js";
 import useAutoDismiss from "../../hooks/useAutoDismiss.js";
 import { createTenantAccount } from "../../services/userService.js";
+import { getRole } from "../../services/authService.js";
 
 const getTodayDate = () => {
   const now = new Date();
@@ -74,6 +75,18 @@ export default function Tenants() {
   const [portalAccountTenant, setPortalAccountTenant] = useState(null);
   const [portalUsername, setPortalUsername] = useState("");
   const [isCreatingPortalAccount, setIsCreatingPortalAccount] = useState(false);
+  const role = getRole()
+    ?.replace("ROLE_", "")
+    ?.toUpperCase();
+
+  const isSuperAdmin = role === "ADMIN";
+
+  const canManageTenants =
+    role === "ADMIN" ||
+    role === "BUILDING_ADMIN";
+
+  const canManagePortalAccounts =
+    role === "ADMIN";
 
   const clearError = useCallback(() => {
     setError("");
@@ -126,16 +139,29 @@ export default function Tenants() {
     []
   );
 
-  const buildingOptions = useMemo(
-    () => [
-      { value: "", label: "All Buildings" },
-      ...buildings.map((building) => ({
-        value: building.buildingId,
-        label: building.buildingName,
-      })),
-    ],
-    [buildings]
-  );
+  const buildingOptions = useMemo(() => {
+    const availableBuildings = buildings.map((building) => ({
+      value: building.buildingId,
+      label: building.buildingName,
+    }));
+
+    if (isSuperAdmin) {
+      return [
+        { value: "", label: "All Buildings" },
+        ...availableBuildings,
+      ];
+    }
+
+    return availableBuildings;
+  }, [buildings, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin && buildings.length === 1) {
+      setBuildingFilter(
+        String(buildings[0].buildingId)
+      );
+    }
+  }, [buildings, isSuperAdmin]);
 
   const roomsForSelectedBuilding = useMemo(() => {
     if (!buildingFilter) {
@@ -210,7 +236,15 @@ export default function Tenants() {
 
   const clearFilters = () => {
     setStatusFilter("ACTIVE");
-    setBuildingFilter("");
+
+    if (!isSuperAdmin && buildings.length === 1) {
+      setBuildingFilter(
+        String(buildings[0].buildingId)
+      );
+    } else {
+      setBuildingFilter("");
+    }
+
     setRoomFilter("");
   };
 
@@ -533,16 +567,18 @@ export default function Tenants() {
                 Reset Filters
               </motion.button>
 
-              <motion.button
-                type="button"
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={openCreateForm}
-                disabled={rooms.length === 0}
-                className="rounded-full bg-stone-900 px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-white shadow-sm transition-all duration-300 hover:bg-stone-800 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Add Tenant
-              </motion.button>
+              {canManageTenants && (
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={openCreateForm}
+                  disabled={rooms.length === 0}
+                  className="rounded-full bg-stone-900 px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-white shadow-sm transition-all duration-300 hover:bg-stone-800 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Add Tenant
+                </motion.button>
+              )}
             </div>
           </div>
 
@@ -694,17 +730,21 @@ export default function Tenants() {
                 </div>
 
                 <div className="mt-auto flex flex-wrap gap-3 pt-7">
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => openEditForm(tenant)}
-                    className="flex-1 rounded-full border border-stone-300 bg-white px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest text-stone-700 shadow-sm transition-all duration-300 hover:border-stone-800 hover:shadow-md"
-                  >
-                    Edit
-                  </motion.button>
+                  {canManageTenants && (
+                    <motion.button
+                      type="button"
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => openEditForm(tenant)}
+                      className="flex-1 rounded-full border border-stone-300 bg-white px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest text-stone-700 shadow-sm transition-all duration-300 hover:border-stone-800 hover:shadow-md"
+                    >
+                      Edit
+                    </motion.button>
+                  )}
 
-                  {tenant.tenantStatus === "ACTIVE" &&
+                  
+
+                  {canManageTenants && tenant.tenantStatus === "ACTIVE" &&
                     !tenant.portalAccountCreated && (
                       <motion.button
                         type="button"
@@ -717,7 +757,7 @@ export default function Tenants() {
                       </motion.button>
                     )}
 
-                  {tenant.tenantStatus === "ACTIVE" && (
+                  {canManageTenants && tenant.tenantStatus === "ACTIVE" && (
                     <motion.button
                       type="button"
                       whileHover={{ y: -2 }}

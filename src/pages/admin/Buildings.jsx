@@ -6,6 +6,7 @@ import ActionButton from "../../components/admin/ActionButton.jsx";
 import PremiumSelect from "../../components/admin/PremiumSelect.jsx";
 import { createBuilding, deleteBuilding, getAllBuildings, updateBuilding, } from "../../services/buildingService.js";
 import useAutoDismiss from "../../hooks/useAutoDismiss.js";
+import { getRole } from "../../services/authService.js";
 
 const EMPTY_FORM = {
   buildingName: "",
@@ -36,6 +37,15 @@ export default function Buildings() {
   const [processingId, setProcessingId] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const role = getRole()
+    ?.replace("ROLE_", "")
+    ?.toUpperCase();
+
+  const isSuperAdmin = role === "ADMIN";
+
+  const canEditBuilding =
+    role === "ADMIN" ||
+    role === "BUILDING_ADMIN";
 
   const clearError = useCallback(() => {
     setError("");
@@ -166,12 +176,13 @@ export default function Buildings() {
           </div>
 
           <div className="flex gap-3">
-            <ActionButton onClick={loadBuildings} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </ActionButton>
-            <ActionButton onClick={openCreate} variant="primary">
-              Add Building
-            </ActionButton>
+            
+
+            {isSuperAdmin && (
+              <ActionButton onClick={openCreate} variant="primary">
+                Add Building
+              </ActionButton>
+            )}
           </div>
         </section>
 
@@ -217,19 +228,33 @@ export default function Buildings() {
                   {[building.address, building.city].filter(Boolean).join(", ")}
                 </p>
 
-                <div className="mt-auto flex gap-3 pt-8">
-                  <ActionButton onClick={() => openEdit(building)} className="flex-1">
-                    Edit
-                  </ActionButton>
-                  <ActionButton
-                    onClick={() => remove(building)}
-                    disabled={processingId === building.buildingId}
-                    variant="danger"
-                    className="flex-1"
-                  >
-                    {processingId === building.buildingId ? "Deleting..." : "Delete"}
-                  </ActionButton>
-                </div>
+                {(canEditBuilding || isSuperAdmin) && (
+                  <div className="mt-auto flex gap-3 pt-8">
+
+                    {canEditBuilding && (
+                      <ActionButton
+                        onClick={() => openEdit(building)}
+                        className="flex-1"
+                      >
+                        Edit
+                      </ActionButton>
+                    )}
+
+                    {isSuperAdmin && (
+                      <ActionButton
+                        onClick={() => remove(building)}
+                        disabled={processingId === building.buildingId}
+                        variant="danger"
+                        className="flex-1"
+                      >
+                        {processingId === building.buildingId
+                          ? "Deleting..."
+                          : "Delete"}
+                      </ActionButton>
+                    )}
+
+                  </div>
+                )}
               </motion.article>
             ))}
           </section>

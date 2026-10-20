@@ -5,6 +5,8 @@ import { getAllBuildings } from "../../services/buildingService.js";
 import { getAllRooms } from "../../services/roomService.js";
 import { getAllTenants } from "../../services/tenantService.js";
 import useAutoDismiss from "../../hooks/useAutoDismiss.js";
+import { Link } from "react-router-dom";
+import { getRole } from "../../services/authService.js";
 
 const CAPACITY = { SINGLE: 1, DOUBLE: 2, TRIPLE: 3, FOUR: 4 };
 const id = (value) => String(value ?? "");
@@ -18,6 +20,12 @@ export default function AdminDashboard() {
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const role = getRole()
+    ?.replace("ROLE_", "")
+    ?.toUpperCase();
+
+  const isSuperAdmin = role === "ADMIN";
 
   const clearError = useCallback(() => {
     setError("");
@@ -102,6 +110,36 @@ export default function AdminDashboard() {
             </article>
           ))}
         </section>
+
+        {isSuperAdmin && (
+          <section className="mt-8 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
+                  Administration
+                </p>
+
+                <h2 className="mt-2 text-2xl font-black tracking-tighter">
+                  Staff Accounts
+                </h2>
+
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-500">
+                  Create and manage Building Admin and Supervisor accounts
+                  for each PG building.
+                </p>
+              </div>
+
+              <Link
+                to="/admin/staff-accounts"
+                className="inline-flex shrink-0 items-center justify-center rounded-full bg-stone-900 px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-white transition hover:bg-stone-700"
+              >
+                Manage Staff
+              </Link>
+
+            </div>
+          </section>
+        )}
 
         <section className="mt-8 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">

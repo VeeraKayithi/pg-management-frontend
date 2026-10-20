@@ -11,7 +11,7 @@ const API_BASE_URL =
 
 export default function Login() {
   const navigate = useNavigate();
-  
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -37,7 +37,7 @@ export default function Login() {
         `${API_BASE_URL}/auth/login`,
         {
           username: normalizedUsername,
-          password,
+          password: normalizedPassword
         }
       );
 
@@ -54,7 +54,13 @@ export default function Login() {
       const normalizedRole =
         authData.role.toUpperCase();
 
-      if (normalizedRole === "ADMIN") {
+      const managementRoles = [
+        "ADMIN",
+        "BUILDING_ADMIN",
+        "SUPERVISOR",
+      ];
+
+      if (managementRoles.includes(normalizedRole)) {
         navigate("/admin/dashboard", {
           replace: true,
         });

@@ -18,6 +18,7 @@ import Buildings from "./pages/admin/Buildings.jsx";
 import Rooms from "./pages/admin/Rooms.jsx";
 import Tenants from "./pages/admin/Tenants.jsx";
 import Communications from "./pages/admin/Communications.jsx";
+import StaffAccounts from "./pages/admin/StaffAccounts.jsx";
 
 import TenantDashboard from "./pages/tenant/Dashboard.jsx";
 
@@ -46,10 +47,16 @@ export default function App() {
           element={<Unauthorized />}
         />
 
-        {/* Admin-protected routes */}
+        {/* Management-protected routes */}
         <Route
           element={
-            <ProtectedRoute allowedRoles={["ADMIN"]} />
+            <ProtectedRoute
+              allowedRoles={[
+                "ADMIN",
+                "BUILDING_ADMIN",
+                "SUPERVISOR",
+              ]}
+            />
           }
         >
           <Route
@@ -80,6 +87,19 @@ export default function App() {
           <Route
             path="/admin/notifications"
             element={<Notifications />}
+          />
+        </Route>
+        {/* Super Admin-only routes */}
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={["ADMIN"]}
+            />
+          }
+        >
+          <Route
+            path="/admin/staff-accounts"
+            element={<StaffAccounts />}
           />
         </Route>
         {/* Tenant-protected routes */}
