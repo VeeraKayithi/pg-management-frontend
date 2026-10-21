@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BedDouble, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import {  Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
 import NanduSelect from "../../components/admin/NanduSelect.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";

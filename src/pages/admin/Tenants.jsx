@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Plus, X } from "lucide-react";
+import { History, Plus, X } from "lucide-react";
+import TenantStayHistoryModal from "../../components/admin/TenantStayHistoryModal.jsx";
 
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
 import NanduSelect from "../../components/admin/NanduSelect.jsx";
@@ -77,6 +78,7 @@ export default function Tenants() {
   const [accountRecovery, setAccountRecovery] = useState(null);
   const [portalAccountTenant, setPortalAccountTenant] = useState(null);
   const [departureTenant, setDepartureTenant] = useState(null);
+  const [historyTenant, setHistoryTenant] = useState(null);
   const [portalUsername, setPortalUsername] = useState("");
   const [isCreatingPortalAccount, setIsCreatingPortalAccount] = useState(false);
   const role = getRole()
@@ -571,6 +573,7 @@ export default function Tenants() {
                     <td className="px-4 py-3"><span className={`rounded-md px-2 py-1 text-xs font-semibold ${active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{tenant.tenantStatus || "—"}</span></td>
                     <td className="px-4 py-3 text-xs text-[#64748B]">{!tenant.portalAccountCreated ? "Not created" : tenant.portalAccountActive ? "Active" : "Pending activation"}</td>
                     <td className="px-4 py-3"><div className="flex flex-wrap justify-end gap-1.5">
+                      <button className={buttonStyle} type="button" onClick={() => setHistoryTenant(tenant)}><History size={14} className="inline-block align-[-2px] mr-1" />History</button>
                       {canManageTenants && <button className={buttonStyle} type="button" onClick={() => openEditForm(tenant)}>Edit</button>}
                       {canManagePortalAccounts && active && !tenant.portalAccountCreated && <button className={buttonStyle} type="button" onClick={() => openPortalAccountModal(tenant)}>Portal</button>}
                       {canManageTenants && active && <button className={buttonStyle} type="button" disabled={processingTenantId === tenant.tenantId} onClick={() => { setError(""); setDepartureTenant(tenant); }}>{processingTenantId === tenant.tenantId ? "Updating..." : "Mark left"}</button>}
@@ -583,6 +586,8 @@ export default function Tenants() {
           </div>
         </section>
       </div>
+
+      {historyTenant && <TenantStayHistoryModal tenant={historyTenant} onClose={() => setHistoryTenant(null)} />}
 
       {isFormOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0E253C]/55 p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) closeForm(); }}>
