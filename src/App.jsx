@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Navigate,
@@ -6,8 +7,8 @@ import {
 } from "react-router-dom";
 
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import AdminLayout from "./layouts/AdminLayout.jsx";
 
-import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
 import Unauthorized from "./pages/Unauthorized.jsx";
 import ActivateAccount from "./pages/ActivateAccount.jsx";
@@ -26,16 +27,15 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
+
+        {/* Root redirects to Login */}
         <Route
           path="/"
-          element={<Home />}
+          element={<Navigate to="/login" replace />}
         />
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        {/* Public authentication routes */}
+        <Route path="/login" element={<Login />} />
 
         <Route
           path="/activate-account"
@@ -47,7 +47,7 @@ export default function App() {
           element={<Unauthorized />}
         />
 
-        {/* Management-protected routes */}
+        {/* Management authentication */}
         <Route
           element={
             <ProtectedRoute
@@ -59,55 +59,59 @@ export default function App() {
             />
           }
         >
-          <Route
-            path="/admin/dashboard"
-            element={<AdminDashboard />}
-          />
 
-          <Route
-            path="/admin/buildings"
-            element={<Buildings />}
-          />
+          {/* Shared NANDU management layout */}
+          <Route element={<AdminLayout />}>
 
-          <Route
-            path="/admin/rooms"
-            element={<Rooms />}
-          />
+            <Route
+              path="/admin/dashboard"
+              element={<AdminDashboard />}
+            />
 
-          <Route
-            path="/admin/tenants"
-            element={<Tenants />}
-          />
+            <Route
+              path="/admin/buildings"
+              element={<Buildings />}
+            />
 
-          <Route
-            path="/admin/communications"
-            element={<Communications />}
-          />
+            <Route
+              path="/admin/rooms"
+              element={<Rooms />}
+            />
 
-          <Route
-            path="/admin/notifications"
-            element={<Notifications />}
-          />
+            <Route
+              path="/admin/tenants"
+              element={<Tenants />}
+            />
+
+            <Route
+              path="/admin/communications"
+              element={<Communications />}
+            />
+
+            <Route
+              path="/admin/notifications"
+              element={<Notifications />}
+            />
+
+            {/* Super Admin only */}
+            <Route
+              element={
+                <ProtectedRoute allowedRoles={["ADMIN"]} />
+              }
+            >
+              <Route
+                path="/admin/staff-accounts"
+                element={<StaffAccounts />}
+              />
+            </Route>
+
+          </Route>
         </Route>
-        {/* Super Admin-only routes */}
+
+        {/* Tenant-only routes */}
         <Route
           element={
-            <ProtectedRoute
-              allowedRoles={["ADMIN"]}
-            />
-          }
-        >
-          <Route
-            path="/admin/staff-accounts"
-            element={<StaffAccounts />}
-          />
-        </Route>
-        {/* Tenant-protected routes */}
-        <Route
-          element={
-            <ProtectedRoute
-              allowedRoles={["TENANT"]}
-            />
+            <ProtectedRoute allowedRoles={["TENANT"]} />
           }
         >
           <Route
@@ -124,13 +128,9 @@ export default function App() {
         {/* Unknown routes */}
         <Route
           path="*"
-          element={
-            <Navigate
-              to="/"
-              replace
-            />
-          }
+          element={<Navigate to="/login" replace />}
         />
+
       </Routes>
     </BrowserRouter>
   );

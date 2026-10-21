@@ -1,17 +1,102 @@
+
 @import "tailwindcss";
 
-/* Smooth scrolling when users click navbar links */
+/* ====================================
+   NANDU MANAGEMENT - GLOBAL DESIGN
+==================================== */
+
+:root {
+  /* Official NANDU light theme */
+  --pg-bg: #F7F5EF;
+  --pg-surface: #FFFFFF;
+  --pg-surface-soft: #E8F0F7;
+
+  --pg-text: #1C1917;
+  --pg-text-muted: #78716C;
+  --pg-border: #E7E2D8;
+  --pg-heading: #183B5B;
+
+  /* NANDU brand */
+  --pg-primary: #183B5B;
+  --pg-primary-hover: #102F4B;
+  --pg-accent: #B33A3A;
+
+  color-scheme: light;
+}
+
+/* ====================================
+   DARK THEME - FOR FUTURE USE
+==================================== */
+
+:root[data-theme="dark"] {
+  --pg-bg: #101B29;
+  --pg-surface: #1C2C3D;
+  --pg-surface-soft: #293F55;
+
+  --pg-text: #F5F2EA;
+  --pg-text-muted: #B0BDCA;
+  --pg-border: transparent;
+  --pg-heading: #F5F2EA;
+
+  --pg-primary: #8CB8E0;
+  --pg-primary-hover: #B6D4ED;
+  --pg-accent: #E58B8B;
+
+  color-scheme: dark;
+}
+
+/* ====================================
+   BASE STYLES
+==================================== */
+
 html {
   scroll-behavior: smooth;
 }
 
-/* Optional: Clean up scrollbars for a premium look on mobile */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--pg-bg);
+  color: var(--pg-text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* ====================================
+   ACCESSIBILITY
+==================================== */
+
+:focus-visible {
+  outline: 2px solid var(--pg-primary);
+  outline-offset: 3px;
+}
+
+/* ====================================
+   MOBILE SCROLLBARS
+==================================== */
+
 @media (max-width: 768px) {
   ::-webkit-scrollbar {
     width: 4px;
   }
+
   ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: #CBD5E1;
     border-radius: 10px;
   }
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Eye, EyeOff, LockKeyhole, LogIn, AlertCircle, LoaderCircle } from "lucide-react";
 import axios from "axios";
 
 import { logoutUser, saveAuthentication, } from "../services/authService.js";
@@ -11,6 +11,7 @@ const API_BASE_URL =
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +24,7 @@ export default function Login() {
     setError("");
 
     const normalizedUsername = username.trim();
-    const normalizedPassword = password.trim();
+    const normalizedPassword = password;
 
     if (!normalizedUsername || !normalizedPassword) {
       setError("Please enter both username and password.");
@@ -112,148 +113,29 @@ export default function Login() {
     }
   };
 
-  return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F5F5F0] px-4 py-10 sm:px-6">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-stone-300/25 blur-3xl"
-      />
-
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-28 -right-24 h-80 w-80 rounded-full bg-rose-200/20 blur-3xl"
-      />
-
-      <motion.section
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full max-w-md"
-      >
-        <div className="rounded-[2rem] border border-stone-200/70 bg-white p-6 shadow-[0_25px_70px_-30px_rgba(28,25,23,0.32)] sm:p-10">
-          <div className="mb-8 text-center">
-            <Link
-              to="/"
-              aria-label="Return to Nandu PG home page"
-              className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 shadow-sm transition-transform hover:scale-105"
-            >
-              <img
-                src="/nandu-logo.svg"
-                alt="Nandu PG"
-                className="h-9 w-9 object-contain"
-              />
-            </Link>
-
-            <h1 className="text-3xl font-black uppercase tracking-tighter text-stone-900">
-              Nandu
-            </h1>
-
-            <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">
-              Premium PG
-            </p>
-
-            <div className="mt-6">
-              <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-[9px] font-bold uppercase tracking-[0.2em] text-stone-600">
-                Private Access Portal
-              </span>
-            </div>
-
-            <h2 className="mt-6 text-3xl font-black tracking-tighter text-stone-900">
-              Welcome back
-            </h2>
-
-            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-stone-500">
-              Sign in to access your Nandu PG account.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            <div>
-              <label
-                htmlFor="username"
-                className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-stone-500"
-              >
-                Username
-              </label>
-
-              <input
-                id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                value={username}
-                disabled={isLoading}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="Enter your username"
-                className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-500 focus:bg-white focus:ring-4 focus:ring-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-stone-500"
-              >
-                Password
-              </label>
-
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  disabled={isLoading}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 pr-20 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-500 focus:bg-white focus:ring-4 focus:ring-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
-                />
-
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="absolute inset-y-0 right-0 px-4 text-[9px] font-black uppercase tracking-widest text-stone-500 transition-colors hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-60"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-700"
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full rounded-full bg-stone-900 px-6 py-3.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-sm transition-all hover:bg-stone-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLoading ? "Signing In..." : "Sign In"}
-            </button>
-          </form>
-
-          <div className="mt-8 border-t border-stone-100 pt-6 text-center">
-            <Link
-              to="/"
-              className="text-sm font-medium text-stone-500 transition-colors hover:text-stone-900"
-            >
-              Back to Nandu PG
-            </Link>
-          </div>
-        </div>
-
-        <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-widest text-stone-400">
-          Secure access for authorized residents and management
-        </p>
-      </motion.section>
-    </main>
-  );
+ 
+return (
+  <main className="min-h-screen bg-[#F3F6F8] text-[#183B5B] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,560px)]">
+    <aside className="relative hidden min-h-screen flex-col justify-between overflow-hidden bg-[#123653] px-12 py-12 text-white lg:flex xl:px-20">
+      <div className="relative z-10 flex items-center gap-3"><div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white p-2"><img src="/nandu_group_of_hostels_logo.svg" alt="NANDU" className="h-full w-full object-contain" /></div><div><p className="text-sm font-bold tracking-[0.15em]">NANDU</p><p className="text-xs text-slate-300">GROUP OF HOSTELS</p></div></div>
+      <div className="relative z-10 max-w-xl"><p className="mb-5 text-xs font-bold uppercase tracking-[0.24em] text-[#9EC1DC]">NANDU · OPERATIONS WORKSPACE</p><h2 className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">Every property.<br/>One connected workspace.</h2><p className="mt-5 max-w-md text-base leading-7 text-slate-300">Your secure access to buildings, rooms, residents, staff, and day-to-day operations.</p><div className="mt-9 h-1 w-20 rounded-full bg-[#8DB6D5]" /></div>
+      <p className="relative z-10 text-xs text-slate-400">NANDU Group of Hostels · Internal portal</p>
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-48 -right-44 h-[550px] w-[550px] rounded-full border border-white/10"/><div aria-hidden="true" className="pointer-events-none absolute -bottom-28 -right-28 h-[380px] w-[380px] rounded-full border border-white/10" />
+    </aside>
+    <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-10">
+      <div className="w-full max-w-[410px]">
+        <div className="mb-9 flex items-center gap-3 lg:hidden"><img src="/nandu_group_of_hostels_logo.svg" alt="NANDU" className="h-12 w-12 rounded-lg bg-white p-1.5"/><span className="text-sm font-extrabold tracking-wide">NANDU · WORKSPACE</span></div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#63849B]">Secure sign in</p><h1 className="mt-3 text-[32px] font-bold tracking-tight text-[#123653]">Welcome back</h1><p className="mt-2 text-sm text-[#6B7F8F]">Sign in with your assigned portal credentials.</p>
+        {searchParams.get("activated") === "true" && <div role="status" className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Your account is activated. Please sign in.</div>}
+        <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
+          <div><label htmlFor="username" className="mb-2 block text-sm font-semibold">Username</label><input id="username" name="username" type="text" autoComplete="username" value={username} disabled={isLoading} onChange={e=>setUsername(e.target.value)} placeholder="Enter username" className="h-12 w-full rounded-lg border border-[#D4E0E8] bg-white px-4 text-sm text-[#183B5B] outline-none transition focus:border-[#477A9E] focus:ring-2 focus:ring-[#477A9E]/15 disabled:opacity-60" /></div>
+          <div><label htmlFor="password" className="mb-2 block text-sm font-semibold">Password</label><div className="relative"><input id="password" name="password" type={showPassword?"text":"password"} autoComplete="current-password" value={password} disabled={isLoading} onChange={e=>setPassword(e.target.value)} placeholder="Enter password" className="h-12 w-full rounded-lg border border-[#D4E0E8] bg-white px-4 pr-12 text-sm text-[#183B5B] outline-none transition focus:border-[#477A9E] focus:ring-2 focus:ring-[#477A9E]/15 disabled:opacity-60"/><button type="button" disabled={isLoading} onClick={()=>setShowPassword(v=>!v)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#6B8292] hover:text-[#183B5B]" aria-label={showPassword?"Hide password":"Show password"}>{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></div>
+          {error && <div role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><AlertCircle size={18} className="mt-0.5 shrink-0"/>{error}</div>}
+          <button type="submit" disabled={isLoading} className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#183B5B] px-5 text-sm font-semibold text-white transition hover:bg-[#102F4B] disabled:cursor-wait disabled:opacity-60">{isLoading?<LoaderCircle className="animate-spin" size={18}/>:<LogIn size={18}/>} {isLoading?"Signing in...":"Sign in"}</button>
+        </form>
+        <div className="mt-8 border-t border-[#D8E3EB] pt-5 text-center text-xs text-[#728696]"><LockKeyhole size={14} className="mr-1 inline-block align-[-2px]"/> Authorized team members and residents only</div>
+      </div>
+    </section>
+  </main>
+);
 }

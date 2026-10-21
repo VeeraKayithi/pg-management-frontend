@@ -1,228 +1,180 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { AlertCircle, ArrowRight, Building2, ChevronRight, RefreshCw, Search, X } from "lucide-react";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
 import { getAllRooms } from "../../services/roomService.js";
 import { getAllTenants } from "../../services/tenantService.js";
-import useAutoDismiss from "../../hooks/useAutoDismiss.js";
-import { Link } from "react-router-dom";
 import { getRole } from "../../services/authService.js";
+import { buildOverview, formatNumber, idOf, occupancyLabel, roomAvailability, roomMatches, roomTypeLabel } from "../../utils/overviewMetrics.js";
 
-const CAPACITY = { SINGLE: 1, DOUBLE: 2, TRIPLE: 3, FOUR: 4 };
-const id = (value) => String(value ?? "");
-const capacityOf = (room) => Number(room.capacity) || CAPACITY[room.sharingType?.toUpperCase()] || 0;
+const cols = "grid grid-cols-[minmax(0,2fr)_70px_95px_110px_90px] items-center gap-3";
+const roomCols = "grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_65px_80px_110px] items-center gap-3";
+const btn = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#D7E0E7] bg-white px-4 text-xs font-semibold text-[#183B5B] transition hover:bg-[#E8F0F7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183B5B] disabled:opacity-50";
+const statusClasses = {
+  available: "bg-emerald-50 text-emerald-800",
+  full: "bg-blue-50 text-[#183B5B]",
+  unavailable: "bg-amber-50 text-amber-800",
+  muted: "bg-slate-100 text-slate-600",
+};
+
+function Status({ room }) {
+  const { label, tone } = roomAvailability(room);
+  return <span className={`inline-flex rounded px-2.5 py-1 text-xs font-semibold ${statusClasses[tone] || statusClasses.muted}`}>{label}</span>;
+}
+
+function Stat({ label, value }) {
+  return <div className="min-w-0 border-r border-white/20 px-5 py-4 last:border-r-0 sm:py-5">
+    <dt className="text-[11px] font-semibold text-blue-100">{label}</dt>
+    <dd className="mt-1 text-3xl font-bold tabular-nums text-white">{formatNumber(value)}</dd>
+  </div>;
+}
 
 export default function AdminDashboard() {
-  const [buildings, setBuildings] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [tenants, setTenants] = useState([]);
-  const [selectedBuildingId, setSelectedBuildingId] = useState("");
-  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [selectedBuildingId, setSelectedBuildingId] = useState("");
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [filter, setFilter] = useState("ALL");
+  const requestId = useRef(0);
+  const role = getRole()?.replace(/^ROLE_/i, "")?.toUpperCase();
 
-  const role = getRole()
-    ?.replace("ROLE_", "")
-    ?.toUpperCase();
-
-  const isSuperAdmin = role === "ADMIN";
-
-  const clearError = useCallback(() => {
+  const load = useCallback(async () => {
+    const currentId = ++requestId.current;
+    setLoading(true);
     setError("");
+    try {
+      const [buildings, rooms, tenants] = await Promise.all([getAllBuildings(), getAllRooms(), getAllTenants()]);
+      if (![buildings, rooms, tenants].every(Array.isArray)) throw new Error("Unexpected response from the server.");
+      if (currentId !== requestId.current) return;
+      setSnapshot({ buildings, rooms, tenants, loadedAt: new Date() });
+      setSelectedBuildingId((prev) => buildings.some((b) => idOf(b.buildingId) === idOf(prev)) ? prev : idOf(buildings[0]?.buildingId));
+    } catch (e) {
+      if (currentId === requestId.current) setError(e.response?.data?.message || e.message || "Could not load Overview.");
+    } finally {
+      if (currentId === requestId.current) setLoading(false);
+    }
   }, []);
 
-  useAutoDismiss(error, clearError, 4000);
+  useEffect(() => {
+    load();
+    return () => { requestId.current += 1; };
+  }, [load]);
 
-  const load = async () => {
+  const overview = useMemo(() => snapshot ? buildOverview(snapshot.buildings, snapshot.rooms, snapshot.tenants) : null, [snapshot]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const properties = useMemo(() => overview?.properties.filter((property) => {
+    if (!normalizedQuery) return true;
+    return [property.buildingName, property.city].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery))
+      || property.rooms.some((room) => roomMatches(room, normalizedQuery));
+  }) || [], [overview, normalizedQuery]);
+  const selectedProperty = properties.find((p) => idOf(p.buildingId) === selectedBuildingId) || properties[0] || null;
+  const rooms = selectedProperty?.rooms || [];
+  const matchingRooms = rooms.filter((room) => {
+    const propertyMatches = [selectedProperty?.buildingName, selectedProperty?.city].some((v) => String(v ?? "").toLowerCase().includes(normalizedQuery));
+    const matchesSearch = !normalizedQuery || propertyMatches || roomMatches(room, normalizedQuery);
+    const key = roomAvailability(room).key;
+    return matchesSearch && (filter === "ALL" || (filter === "REVIEW" ? ["UNKNOWN", "OVER_CAPACITY"].includes(key) : filter === key));
+  });
+  const selectedRoom = rooms.find((room) => idOf(room.roomId) === selectedRoomId) || null;
 
+  const chooseProperty = (id) => { setSelectedBuildingId(idOf(id)); setSelectedRoomId(""); setFilter("ALL"); };
+  const changeSearch = (value) => { setQuery(value); setSelectedRoomId(""); setFilter("ALL"); };
 
-    try {
-      setLoading(true);
-      setError("");
-      const [b, r, t] = await Promise.all([getAllBuildings(), getAllRooms(), getAllTenants()]);
+  return <main className="mx-auto max-w-[1500px] bg-[var(--pg-bg)] px-4 py-6 text-[#183B5B] sm:px-7 lg:px-9">
+    <AdminHeader title="Portfolio overview" subtitle="Compare availability across your properties and inspect rooms." />
 
-      const safeB = Array.isArray(b) ? b : [];
-      setBuildings(safeB);
-      setRooms(Array.isArray(r) ? r : []);
-      setTenants(Array.isArray(t) ? t : []);
-      setSelectedBuildingId((current) =>
-        safeB.some((item) => id(item.buildingId) === id(current))
-          ? current
-          : safeB[0]?.buildingId ?? ""
-      );
-    } catch (e) {
-      setError(e.response?.data?.message || "Unable to load dashboard data.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    {error && <div role="alert" className="mb-5 flex flex-wrap items-center gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <AlertCircle size={18} /> <span className="flex-1">{error}{snapshot ? " Showing the last loaded data." : ""}</span>
+      <button onClick={load} disabled={loading} className={btn}>Retry</button>
+    </div>}
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { setSelectedRoomId(""); }, [selectedBuildingId]);
+    {!snapshot ? <div className="rounded-lg border border-[#E7E2D8] bg-white p-10 text-sm text-[#78716C]" role="status">
+      {loading ? "Loading properties, rooms and residents…" : "No data available. Use Retry to reload."}
+    </div> : <>
+      <section className="overflow-hidden rounded-lg border border-[#D7E0E7] bg-white shadow-sm" aria-label="Portfolio totals">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#183B5B] px-5 py-3 text-white">
+          <div className="text-xs font-semibold tracking-wide">NANDU / Portfolio operations</div>
+          <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50">
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
+        <dl className="grid grid-cols-2 bg-[#183B5B] sm:grid-cols-4">
+          <Stat label="Properties" value={overview.properties.length} />
+          <Stat label="Rooms" value={overview.portfolio.rooms} />
+          <Stat label="Active residents" value={overview.activeTenants.length} />
+          <Stat label="Beds available" value={overview.portfolio.availableBeds} />
+        </dl>
+      </section>
 
-  const activeTenants = useMemo(
-    () => tenants.filter((tenant) => tenant.tenantStatus?.toUpperCase() === "ACTIVE"),
-    [tenants]
-  );
-
-  const selectedBuilding = buildings.find((b) => id(b.buildingId) === id(selectedBuildingId));
-  const details = useMemo(() => rooms
-    .filter((room) => id(room.buildingId) === id(selectedBuildingId))
-    .map((room) => {
-      const residents = activeTenants.filter((tenant) => id(tenant.roomId) === id(room.roomId));
-      const capacity = capacityOf(room);
-      return {
-        ...room,
-        capacity,
-        residents,
-        occupied: residents.length,
-        available: Math.max(capacity - residents.length, 0),
-        status: capacity > 0 && residents.length >= capacity ? "OCCUPIED" : "AVAILABLE",
-      };
-    }), [rooms, activeTenants, selectedBuildingId]);
-
-  const summary = useMemo(() => ({
-    rooms: details.length,
-    tenants: details.reduce((sum, room) => sum + room.occupied, 0),
-    availableRooms: details.filter((room) => room.status === "AVAILABLE").length,
-    occupiedRooms: details.filter((room) => room.status === "OCCUPIED").length,
-    availableBeds: details.reduce((sum, room) => sum + room.available, 0),
-  }), [details]);
-
-  const selectedRoom = details.find((room) => id(room.roomId) === id(selectedRoomId));
-
-  return (
-    <main className="min-h-screen bg-[#F5F5F0] px-4 py-6 text-stone-900 sm:px-8">
-      <div className="mx-auto max-w-7xl">
-        <AdminHeader title="Operations Overview" subtitle="Building-wise rooms, beds and active residents." />
-
-        {error && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
-
-        <section className="mt-8 grid gap-4 sm:grid-cols-3">
-          {[
-            ["Buildings", buildings.length],
-            ["Rooms", rooms.length],
-            ["Active Tenants", activeTenants.length],
-          ].map(([label, value]) => (
-            <article key={label} className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">{label}</p>
-              <p className="mt-3 text-4xl font-black tracking-tighter">{String(value).padStart(2, "0")}</p>
-            </article>
-          ))}
-        </section>
-
-        {isSuperAdmin && (
-          <section className="mt-8 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
-                  Administration
-                </p>
-
-                <h2 className="mt-2 text-2xl font-black tracking-tighter">
-                  Staff Accounts
-                </h2>
-
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-500">
-                  Create and manage Building Admin and Supervisor accounts
-                  for each PG building.
-                </p>
-              </div>
-
-              <Link
-                to="/admin/staff-accounts"
-                className="inline-flex shrink-0 items-center justify-center rounded-full bg-stone-900 px-6 py-3 text-[9px] font-bold uppercase tracking-widest text-white transition hover:bg-stone-700"
-              >
-                Manage Staff
-              </Link>
-
-            </div>
-          </section>
-        )}
-
-        <section className="mt-8 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">Select Building</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tighter">Building operations</h2>
-            </div>
-            <button onClick={load} disabled={loading} className="rounded-full border border-stone-300 px-4 py-2 text-[8px] font-bold uppercase tracking-widest">Refresh</button>
+      <section className="mt-5 overflow-hidden rounded-lg border border-[#E7E2D8] bg-white" aria-labelledby="properties-heading">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 py-4">
+          <div><h2 id="properties-heading" className="text-lg font-bold">Properties</h2><p className="mt-1 text-xs text-[#78716C]">Select a building to inspect its registered rooms.</p></div>
+          <div className="flex flex-wrap gap-2">
+            <label className="relative block"><span className="sr-only">Search property, room or resident</span>
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#78716C]" />
+              <input type="search" value={query} onChange={(e) => changeSearch(e.target.value)} placeholder="Search property, room or resident" className="h-10 w-full min-w-0 rounded-md border border-[#D7E0E7] bg-white pl-9 pr-3 text-sm outline-offset-2 focus:outline-[#183B5B] sm:w-[290px]" />
+            </label>
+            {role !== "SUPERVISOR" && <Link to="/admin/tenants" className="inline-flex h-10 items-center rounded-md bg-[#183B5B] px-4 text-xs font-semibold text-white hover:bg-[#102F4B]">Manage tenants</Link>}
           </div>
-
-          <div className="mt-5 flex gap-3 overflow-x-auto pb-2 app-scrollbar-horizontal">
-            {buildings.map((building) => {
-              const selected = id(building.buildingId) === id(selectedBuildingId);
-              return (
-                <button
-                  key={building.buildingId}
-                  onClick={() => setSelectedBuildingId(building.buildingId)}
-                  className={`min-w-52 rounded-2xl border p-4 text-left transition ${selected ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-stone-50"}`}
-                >
-                  <p className={`text-[8px] font-bold uppercase tracking-widest ${selected ? "text-stone-300" : "text-stone-400"}`}>{building.buildingType}</p>
-                  <p className="mt-2 font-black">{building.buildingName}</p>
-                  <p className={`mt-1 text-xs ${selected ? "text-stone-300" : "text-stone-500"}`}>{building.city}</p>
-                </button>
-              );
-            })}
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[650px]">
+            <div className={`${cols} bg-[#E8F0F7] px-5 py-3 text-[11px] font-bold uppercase tracking-wide`}>
+              <span>Property</span><span>Rooms</span><span>Beds free</span><span>Occupancy</span><span>Unavailable</span>
+            </div>
+            {properties.map((p) => <button key={p.buildingId} type="button" onClick={() => chooseProperty(p.buildingId)} aria-pressed={selectedProperty?.buildingId === p.buildingId}
+              className={`${cols} w-full border-t border-[#E7E2D8] px-5 py-3 text-left text-sm hover:bg-[#F3F7FA] ${selectedProperty?.buildingId === p.buildingId ? "bg-[#E8F0F7] font-semibold" : ""}`}>
+              <span className="flex min-w-0 items-center gap-2"><ChevronRight size={15} className="shrink-0" />{p.buildingName}</span>
+              <span>{p.summary.rooms}</span><span>{p.summary.availableBeds}</span><span>{occupancyLabel(p.summary.occupancy)}</span><span>{p.summary.unavailable}</span>
+            </button>)}
           </div>
-        </section>
+        </div>
+        {!properties.length && <p className="p-6 text-sm text-[#78716C]">No matching properties. <button onClick={() => changeSearch("")} className="underline">Clear search</button></p>}
+      </section>
 
-        {selectedBuilding && (
-          <>
-            <section className="mt-8">
-              <h2 className="text-3xl font-black tracking-tighter">{selectedBuilding.buildingName}</h2>
-              <p className="mt-1 text-sm text-stone-500">{[selectedBuilding.address, selectedBuilding.city].filter(Boolean).join(", ")}</p>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {Object.entries(summary).map(([key, value]) => (
-                  <article key={key} className="rounded-2xl border border-stone-200 bg-white p-5">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-stone-400">{key.replace(/([A-Z])/g, " $1")}</p>
-                    <p className="mt-2 text-3xl font-black">{value}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {details.map((room) => (
-                <motion.button
-                  key={room.roomId}
-                  whileHover={{ y: -3 }}
-                  onClick={() => setSelectedRoomId(id(room.roomId) === id(selectedRoomId) ? "" : room.roomId)}
-                  className={`rounded-[1.75rem] border p-5 text-left ${id(room.roomId) === id(selectedRoomId) ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white"}`}
-                >
-                  <div className="flex justify-between gap-3">
-                    <div>
-                      <p className="text-[8px] font-bold uppercase tracking-widest text-stone-400">{room.sharingType} Sharing</p>
-                      <h3 className="mt-2 text-2xl font-black">Room {room.roomNumber}</h3>
-                    </div>
-                    <span className={`h-fit rounded-full px-3 py-1 text-[7px] font-bold ${room.status === "OCCUPIED" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>{room.status}</span>
-                  </div>
-                  <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-                    <div><p className="text-[7px] uppercase text-stone-400">Occupied</p><p className="font-black">{room.occupied}/{room.capacity}</p></div>
-                    <div><p className="text-[7px] uppercase text-stone-400">Available</p><p className="font-black">{room.available}</p></div>
-                    <div><p className="text-[7px] uppercase text-stone-400">Capacity</p><p className="font-black">{room.capacity}</p></div>
-                  </div>
-                </motion.button>
-              ))}
-            </section>
-
-            {selectedRoom && (
-              <section className="mt-8 rounded-[2rem] border border-stone-200 bg-white p-6">
-                <h2 className="text-2xl font-black">Room {selectedRoom.roomNumber} residents</h2>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {selectedRoom.residents.length ? selectedRoom.residents.map((tenant) => (
-                    <article key={tenant.tenantId} className="rounded-2xl bg-stone-50 p-4">
-                      <p className="font-black">{tenant.name}</p>
-                      <p className="mt-1 text-sm text-stone-500">{tenant.mobileNumber}</p>
-                    </article>
-                  )) : <p className="text-sm text-stone-500">No active tenants in this room.</p>}
-                </div>
-              </section>
-            )}
-          </>
-        )}
-      </div>
-    </main>
-  );
+      {selectedProperty && <section className="mt-5 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_290px]" aria-labelledby="rooms-heading">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-[#E7E2D8] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+            <div><h2 id="rooms-heading" className="text-lg font-bold">{selectedProperty.buildingName}</h2><p className="mt-1 text-xs text-[#78716C]">Room inventory · {selectedProperty.summary.availableBeds} beds free</p></div>
+            <Link to="/admin/rooms" className={`${btn}`}>Manage rooms <ArrowRight size={15} /></Link>
+          </div>
+          <div className="flex flex-wrap gap-2 border-t border-[#E7E2D8] px-5 py-3" aria-label="Filter room availability">
+            {[["ALL", "All rooms"], ["OPEN", "Available"], ["FULL", "Full"], ["UNDER_REPAIR", "Repair"], ["BLOCKED", "Blocked"], ["REVIEW", "Needs review"]].map(([key, text]) => <button key={key} onClick={() => { setFilter(key); setSelectedRoomId(""); }} aria-pressed={filter === key}
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium ${filter === key ? "border-[#183B5B] bg-[#183B5B] text-white" : "border-[#D7E0E7] bg-white text-[#183B5B] hover:bg-[#E8F0F7]"}`}>{text}</button>)}
+          </div>
+          <div className="overflow-x-auto"><div className="min-w-[590px]">
+            <div className={`${roomCols} bg-[#E8F0F7] px-5 py-3 text-[11px] font-bold uppercase tracking-wide`}>
+              <span>Room</span><span>Configuration</span><span>Occupied</span><span>Beds free</span><span>State</span>
+            </div>
+            {matchingRooms.map((r) => <button key={r.roomId} type="button" onClick={() => setSelectedRoomId(idOf(r.roomId))} aria-pressed={selectedRoomId === idOf(r.roomId)}
+              className={`${roomCols} w-full border-t border-[#E7E2D8] px-5 py-3 text-left text-sm hover:bg-[#E8F0F7] ${selectedRoomId === idOf(r.roomId) ? "bg-[#E8F0F7]" : ""}`}>
+              <span className="font-bold">{r.roomNumber}</span>
+              <span>{String(r.sharingType || "").replaceAll("_", " ").toLowerCase()} · {roomTypeLabel(r.roomType)}</span>
+              <span>{r.occupied}/{r.capacity || "—"}</span>
+              <span>{r.unavailable || !r.knownStatus || !r.capacity ? "—" : r.available}</span>
+              <Status room={r} />
+            </button>)}
+          </div></div>
+          {!matchingRooms.length && <div className="px-5 py-8 text-sm text-[#78716C]">No rooms match the selected filters.</div>}
+        </div>
+        <aside className="rounded-lg border border-[#E7E2D8] bg-white p-5" aria-label="Room inspector">
+          {selectedRoom ? <>
+            <div className="flex items-start justify-between gap-3"><h3 className="text-lg font-bold">Room {selectedRoom.roomNumber}</h3><button type="button" className="rounded p-1 hover:bg-[#E8F0F7]" aria-label="Close room details" onClick={() => setSelectedRoomId("")}><X size={18}/></button></div>
+            <div className="mt-2"><Status room={selectedRoom}/></div>
+            <p className="mt-3 text-xs text-[#78716C]">{selectedProperty.buildingName} · {selectedRoom.sharingType} · {roomTypeLabel(selectedRoom.roomType)}</p>
+            <div className="mt-4 grid grid-cols-3 gap-2 border-y border-[#E7E2D8] py-4 text-center">
+              {[["Capacity", selectedRoom.capacity || "—"], ["Occupied", selectedRoom.occupied], ["Free", selectedRoom.unavailable ? "—" : selectedRoom.available]].map(([label, value]) => <div key={label}><div className="text-[10px] text-[#78716C]">{label}</div><div className="mt-1 text-xl font-bold">{value}</div></div>)}
+            </div>
+            <h4 className="mt-5 text-xs font-bold uppercase tracking-wide">Active residents</h4>
+            {selectedRoom.residents.length ? <ul className="mt-3 space-y-3">{selectedRoom.residents.map((t) => <li key={t.tenantId} className="border-b border-[#E7E2D8] pb-3"><p className="text-sm font-semibold">{t.name}</p><p className="mt-1 text-xs text-[#78716C]">{t.mobileNumber || "Contact unavailable"}</p></li>)}</ul> : <p className="mt-3 text-xs text-[#78716C]">No active residents assigned.</p>}
+            <Link to="/admin/tenants" className={`${btn} mt-5 w-full`}>Open tenant directory <ArrowRight size={14}/></Link>
+          </> : <><Building2 size={23} className="text-[#183B5B]"/><h3 className="mt-3 text-sm font-bold">Room inspector</h3><p className="mt-2 text-xs leading-5 text-[#78716C]">Select a room from the table to see its occupancy and active residents.</p></>}
+        </aside>
+      </section>}
+      <p className="mt-4 text-[11px] text-[#78716C]">Availability excludes blocked and under-repair rooms. Data last loaded at {snapshot.loadedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}.</p>
+    </>}
+  </main>;
 }

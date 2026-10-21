@@ -1,211 +1,185 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BedDouble, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
-import ActionButton from "../../components/admin/ActionButton.jsx";
-import PremiumSelect from "../../components/admin/PremiumSelect.jsx";
+import NanduSelect from "../../components/admin/NanduSelect.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
-import { createRoom, deleteRoom, getAllRooms, updateRoom } from "../../services/roomService.js";
-import useAutoDismiss from "../../hooks/useAutoDismiss.js";
+import { getAllRooms, createRoom, updateRoom, deleteRoom } from "../../services/roomService.js";
+import { getAllTenants } from "../../services/tenantService.js";
 import { getRole } from "../../services/authService.js";
+import { buildOverview, idOf, roomAvailability, roomTypeLabel } from "../../utils/overviewMetrics.js";
 
-const EMPTY_FORM = { buildingId: "", roomNumber: "", sharingType: "SINGLE", roomType: "NON_AC", roomStatus: "AVAILABLE" };
-const SHARING_OPTIONS = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR"].map((value) => ({ value, label: `${value.charAt(0)}${value.slice(1).toLowerCase()} Sharing` }));
-const ROOM_TYPE_OPTIONS = [
-  { value: "AC", label: "AC" },
-  { value: "NON_AC", label: "Non-AC" },
-];
-const STATUS_OPTIONS = ["AVAILABLE", "OCCUPIED", "UNDER_REPAIR", "BLOCKED"].map((value) => ({ value, label: value.replaceAll("_", " ") }));
-const INPUT_CLASS = "w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm outline-none transition-all duration-200 hover:border-stone-400 focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100";
+const initialForm = { buildingId: "", roomNumber: "", sharingType: "DOUBLE", roomType: "NON_AC", roomStatus: "AVAILABLE" };
+const sharingOptions = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR"];
+const statusOptions = ["AVAILABLE", "OCCUPIED", "UNDER_REPAIR", "BLOCKED"];
+const fieldClass = "w-full min-h-11 rounded-lg border border-[#CDD8E3] bg-white px-3 text-sm text-[#183B5B] outline-none focus:border-[#183B5B] focus:ring-2 focus:ring-[#183B5B]/10";
+const primaryClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#183B5B] px-4 text-sm font-semibold text-white hover:bg-[#102F4B] disabled:opacity-50";
+const secondaryClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#183B5B] hover:bg-[#E8F0F7] disabled:opacity-50";
+
+function getError(error, fallback) {
+  const data = error?.response?.data;
+  if (typeof data?.message === "string") return data.message;
+  if (data && typeof data === "object") {
+    const message = Object.values(data).find((value) => typeof value === "string");
+    if (message) return message;
+  }
+  return error?.message || fallback;
+}
+
+function Status({ room }) {
+  const status = roomAvailability(room);
+  const color = status.tone === "available" ? "bg-emerald-50 text-emerald-800" : status.tone === "full" ? "bg-blue-50 text-blue-900" : status.tone === "unavailable" ? "bg-amber-50 text-amber-900" : "bg-slate-100 text-slate-700";
+  return <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${color}`}>{status.label}</span>;
+}
 
 export default function Rooms() {
-  const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]);
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [rooms, setRooms] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [selectedBuilding, setSelectedBuilding] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("ALL");
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
-  const [open, setOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [processingId, setProcessingId] = useState(null);
   const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
   const [message, setMessage] = useState("");
-  const role = getRole()
-    ?.replace("ROLE_", "")
-    ?.toUpperCase();
+  const role = String(getRole() || "").replace(/^ROLE_/i, "").toUpperCase();
+  const canManage = role === "ADMIN" || role === "BUILDING_ADMIN";
 
-  const canManageRooms =
-    role === "ADMIN" ||
-    role === "BUILDING_ADMIN";
-
-  const clearError = useCallback(() => {
-    setError("");
-  }, []);
-
-  const clearMessage = useCallback(() => {
-    setMessage("");
-  }, []);
-
-  useAutoDismiss(error, clearError, 4000);
-  useAutoDismiss(message, clearMessage, 4000);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [roomData, buildingData] = await Promise.all([getAllRooms(), getAllBuildings()]);
-      setRooms(Array.isArray(roomData) ? roomData : []);
-      setBuildings(Array.isArray(buildingData) ? buildingData : []);
       setError("");
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || "Unable to load rooms.");
+      const [b, r, t] = await Promise.all([getAllBuildings(), getAllRooms(), getAllTenants()]);
+      setBuildings(Array.isArray(b) ? b : []);
+      setRooms(Array.isArray(r) ? r : []);
+      setTenants(Array.isArray(t) ? t : []);
+    } catch (e) {
+      setError(getError(e, "Unable to load room inventory."));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
+  const overview = useMemo(() => buildOverview(buildings, rooms, tenants), [buildings, rooms, tenants]);
+  const visible = useMemo(() => overview.rooms.filter((room) => {
+    if (selectedBuilding && idOf(room.buildingId) !== idOf(selectedBuilding)) return false;
+    const term = search.trim().toLowerCase();
+    if (term && ![room.roomNumber, room.buildingName, ...room.residents.map((r) => r.name), ...room.residents.map((r) => r.mobileNumber)].some((v) => String(v ?? "").toLowerCase().includes(term))) return false;
+    const state = roomAvailability(room).key;
+    if (filter === "AVAILABLE") return state === "OPEN";
+    if (filter === "FULL") return state === "FULL";
+    if (filter === "UNAVAILABLE") return ["BLOCKED", "UNDER_REPAIR"].includes(state);
+    return true;
+  }), [overview.rooms, selectedBuilding, search, filter]);
+  const selectedRoom = overview.rooms.find((room) => idOf(room.roomId) === idOf(selectedRoomId));
+  const countAvailable = visible.reduce((sum, room) => sum + room.available, 0);
 
-  const buildingOptions = useMemo(() => [
-    { value: "", label: "All Buildings" },
-    ...buildings.map((building) => ({ value: building.buildingId, label: building.buildingName })),
-  ], [buildings]);
-
-  const formBuildingOptions = useMemo(() => buildings.map((building) => ({ value: building.buildingId, label: building.buildingName })), [buildings]);
-
-  const visibleRooms = buildingFilter
-    ? rooms.filter((room) => String(room.buildingId) === String(buildingFilter))
-    : rooms;
-
-  const openCreate = () => {
+  const openAdd = () => {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM, buildingId: buildings[0]?.buildingId || "" });
-    setOpen(true);
-    setError("");
+    setForm({ ...initialForm, buildingId: selectedBuilding || buildings[0]?.buildingId || "" });
+    setFormError("");
+    setFormOpen(true);
   };
-
   const openEdit = (room) => {
     setEditingId(room.roomId);
-    setForm({ buildingId: room.buildingId, roomNumber: room.roomNumber, sharingType: room.sharingType, roomType: room.roomType || "NON_AC", roomStatus: room.roomStatus });
-    setOpen(true);
-    setError("");
+    setForm({ buildingId: room.buildingId, roomNumber: room.roomNumber ?? "", sharingType: room.sharingType || "DOUBLE", roomType: room.roomType || "NON_AC", roomStatus: room.roomStatus || "AVAILABLE" });
+    setFormError("");
+    setFormOpen(true);
   };
-
-  const submit = async (event) => {
+  const save = async (event) => {
     event.preventDefault();
-    setError("");
+    const payload = { ...form, buildingId: Number(form.buildingId), roomNumber: String(form.roomNumber).trim() };
+    if (!payload.buildingId || !payload.roomNumber) { setFormError("Building and room number are required."); return; }
+    setSaving(true);
+    setFormError("");
     try {
-      setSaving(true);
-      const payload = { ...form, buildingId: Number(form.buildingId), roomNumber: form.roomNumber.trim() };
-      if (!payload.buildingId || !payload.roomNumber) throw new Error("Please select a building and enter a room number.");
-      if (editingId) await updateRoom(editingId, payload); else await createRoom(payload);
-      setMessage(editingId ? "Room updated successfully." : "Room created successfully.");
-      setOpen(false);
+      if (editingId != null) await updateRoom(editingId, payload);
+      else await createRoom(payload);
+      setFormOpen(false);
+      setMessage(editingId != null ? "Room updated successfully." : "Room created successfully.");
       await load();
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || requestError.message || "Unable to save room.");
-    } finally {
-      setSaving(false);
-    }
+    } catch (e) { setFormError(getError(e, "Unable to save room.")); }
+    finally { setSaving(false); }
   };
-
-  const remove = async (room) => {
-    if (!window.confirm(`Delete room ${room.roomNumber}?`)) return;
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setSaving(true);
     try {
-      setProcessingId(room.roomId);
-      await deleteRoom(room.roomId);
+      await deleteRoom(deleteTarget.roomId);
+      if (idOf(selectedRoomId) === idOf(deleteTarget.roomId)) setSelectedRoomId("");
+      setDeleteTarget(null);
       setMessage("Room deleted successfully.");
       await load();
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || "Unable to delete room.");
-    } finally {
-      setProcessingId(null);
-    }
+    } catch (e) { setError(getError(e, "Unable to delete room.")); setDeleteTarget(null); }
+    finally { setSaving(false); }
   };
 
   return (
-    <main className="min-h-screen bg-[#F5F5F0] px-4 py-6 text-stone-900 sm:px-8">
+    <main className="min-h-screen bg-[var(--pg-bg)] px-4 py-5 text-[var(--pg-text)] sm:px-6 xl:px-8">
       <div className="mx-auto max-w-7xl">
-        <AdminHeader title="Rooms" subtitle="Manage rooms by building and sharing type." />
-
-        <section className="mt-7 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <PremiumSelect label="Building" value={buildingFilter} options={buildingOptions} onChange={setBuildingFilter} />
-            {canManageRooms && (
-              <ActionButton
-                onClick={openCreate}
-                variant="primary"
-                disabled={buildings.length === 0}
-              >
-                Add Room
-              </ActionButton>
-            )}
+        <AdminHeader title="Rooms" subtitle="Inventory, configuration and room availability." />
+        <section className="mt-6 overflow-hidden rounded-xl border border-[#D8E0E8] bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E3E8EF] px-5 py-4">
+            <div><h2 className="text-lg font-bold text-[#183B5B]">Room inventory</h2><p className="text-xs text-slate-500">{visible.length} rooms · {countAvailable} beds available in current view</p></div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={secondaryClass} onClick={load} disabled={loading}><RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh</button>
+              {canManage && <button type="button" className={primaryClass} onClick={openAdd} disabled={!buildings.length}><Plus size={16} /> Add room</button>}
+            </div>
+          </div>
+          <div className="grid gap-3 border-b border-[#E3E8EF] bg-[#F8FAFC] px-5 py-4 md:grid-cols-[1fr_220px]">
+            <label className="relative block"><Search size={17} className="absolute left-3 top-3 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search room, building or resident" className={`${fieldClass} pl-10`} /></label>
+            <NanduSelect placeholder="All buildings" value={selectedBuilding} options={[{ value: "", label: "All buildings" }, ...buildings.map((b) => ({ value: String(b.buildingId), label: b.buildingName }))]} onChange={(value) => { setSelectedBuilding(value); setSelectedRoomId(""); }} />
+          </div>
+          <div className="flex flex-wrap gap-2 border-b border-[#E3E8EF] px-5 py-3">
+            {[ ["ALL", "All rooms"], ["AVAILABLE", "Beds available"], ["FULL", "Full"], ["UNAVAILABLE", "Blocked / repair"] ].map(([key, label]) => <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${filter === key ? "bg-[#183B5B] text-white" : "bg-[#EEF2F6] text-[#183B5B] hover:bg-[#DCE7F0]"}`}>{label}</button>)}
+          </div>
+          {error && <div role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" className="ml-2 underline" onClick={load}>Retry</button></div>}
+          {message && <div role="status" className="m-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+              <thead className="bg-[#EDF2F7] text-xs font-bold uppercase tracking-wide text-[#183B5B]"><tr>{["Room", "Building", "Configuration", "Occupied", "Beds free", "Status", "Action"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
+              <tbody className="divide-y divide-[#EDF1F5]">
+                {!loading && visible.map((room) => <tr key={room.roomId} className="hover:bg-[#F5F8FB]">
+                  <td className="px-4 py-3 font-bold text-[#183B5B]">{room.roomNumber}</td>
+                  <td className="px-4 py-3">{room.buildingName || buildings.find((b) => idOf(b.buildingId) === idOf(room.buildingId))?.buildingName || "—"}</td>
+                  <td className="px-4 py-3">{room.sharingType} · {roomTypeLabel(room.roomType)}</td>
+                  <td className="px-4 py-3 tabular-nums">{room.occupied}/{room.capacity || "—"}</td>
+                  <td className="px-4 py-3 tabular-nums">{room.unavailable ? "—" : room.available}</td>
+                  <td className="px-4 py-3"><Status room={room} /></td>
+                  <td className="px-4 py-3"><button type="button" className="font-semibold text-[#183B5B] underline-offset-4 hover:underline" onClick={() => setSelectedRoomId(idOf(room.roomId) === idOf(selectedRoomId) ? "" : room.roomId)}>{idOf(room.roomId) === idOf(selectedRoomId) ? "Close" : "Inspect →"}</button></td>
+                </tr>)}
+              </tbody>
+            </table>
+            {loading && <div className="p-8 text-center text-sm text-slate-500">Loading rooms…</div>}
+            {!loading && visible.length === 0 && <div className="p-8 text-center text-sm text-slate-500">No rooms match these filters.</div>}
           </div>
         </section>
-
-        {error && <p className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
-        {message && <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</p>}
-
-        <section className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {!loading && visibleRooms.map((room, index) => (
-            <motion.article key={room.roomId} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }} transition={{ delay: index * 0.04 }} className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm hover:shadow-lg">
-              <p className="text-[8px] font-bold uppercase tracking-widest text-stone-400">{room.buildingName}</p>
-              <div className="mt-3 flex items-start justify-between gap-3">
-                <h3 className="text-2xl font-black tracking-tighter">Room {room.roomNumber}</h3>
-                <span className="rounded-full border border-stone-200 bg-stone-100 px-3 py-1.5 text-[7px] font-bold uppercase text-stone-700">{room.roomStatus}</span>
-              </div>
-              <p className="mt-3 text-sm text-stone-500">{room.sharingType} sharing · Capacity {room.capacity} ·{" "}
-                {room.roomType === "AC" ? "AC" : "Non-AC"}</p>
-              {canManageRooms && (
-                <div className="mt-7 flex gap-3">
-                  <ActionButton
-                    onClick={() => openEdit(room)}
-                    className="flex-1"
-                  >
-                    Edit
-                  </ActionButton>
-
-                  <ActionButton
-                    onClick={() => remove(room)}
-                    disabled={processingId === room.roomId}
-                    variant="danger"
-                    className="flex-1"
-                  >
-                    {processingId === room.roomId
-                      ? "Deleting..."
-                      : "Delete"}
-                  </ActionButton>
-                </div>
-              )}
-            </motion.article>
-          ))}
-        </section>
+        {selectedRoom && <section className="mt-4 rounded-xl border border-[#D8E0E8] bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Room details</p><h2 className="mt-1 text-xl font-bold text-[#183B5B]">Room {selectedRoom.roomNumber} <Status room={selectedRoom} /></h2><p className="mt-1 text-sm text-slate-500">{selectedRoom.buildingName} · {selectedRoom.sharingType} · {roomTypeLabel(selectedRoom.roomType)}</p></div><button type="button" className={secondaryClass} onClick={() => setSelectedRoomId("")}><X size={15} /> Close</button></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">{[["Capacity", selectedRoom.capacity], ["Active residents", selectedRoom.occupied], ["Beds available", selectedRoom.unavailable ? "Unavailable" : selectedRoom.available]].map(([label, value]) => <div key={label} className="rounded-lg bg-[#EDF2F7] p-3"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-lg font-bold text-[#183B5B]">{value}</p></div>)}</div>
+          <h3 className="mt-5 text-sm font-bold text-[#183B5B]">Assigned residents</h3><div className="mt-2 space-y-2">{selectedRoom.residents.length ? selectedRoom.residents.map((resident) => <div key={resident.tenantId} className="rounded-lg border border-[#E3E8EF] p-3 text-sm"><strong>{resident.name}</strong><span className="ml-3 text-slate-500">{resident.mobileNumber || ""}</span></div>) : <p className="text-sm text-slate-500">No active residents assigned.</p>}</div>
+          {canManage && <div className="mt-4 flex flex-wrap gap-2"><button type="button" className={primaryClass} onClick={() => openEdit(selectedRoom)}><Pencil size={15} /> Edit room</button><button type="button" className={secondaryClass} onClick={() => setDeleteTarget(selectedRoom)}><Trash2 size={15} /> Delete room</button></div>}
+        </section>}
       </div>
-
-      {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm" onClick={() => !saving && setOpen(false)}>
-          <motion.section initial={{ opacity: 0, scale: 0.97, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="w-full max-w-lg rounded-[2rem] bg-white p-7 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between"><h2 className="text-3xl font-black tracking-tighter">{editingId ? "Edit room" : "Add room"}</h2><ActionButton onClick={() => setOpen(false)} variant="soft">Close</ActionButton></div>
-            <form onSubmit={submit} className="mt-6 space-y-5">
-              <PremiumSelect label="Building" value={form.buildingId} options={formBuildingOptions} onChange={(value) => setForm((current) => ({ ...current, buildingId: value }))} placeholder="Select building" />
-              <input value={form.roomNumber} onChange={(event) => setForm((current) => ({ ...current, roomNumber: event.target.value }))} placeholder="Room number" className={INPUT_CLASS} />
-              <PremiumSelect label="Sharing Type" value={form.sharingType} options={SHARING_OPTIONS} onChange={(value) => setForm((current) => ({ ...current, sharingType: value }))} />
-              <PremiumSelect
-                label="Room Type"
-                value={form.roomType}
-                options={ROOM_TYPE_OPTIONS}
-                onChange={(value) =>
-                  setForm((current) => ({
-                    ...current,
-                    roomType: value
-                  }))
-                }
-              />
-              <PremiumSelect label="Room Status" value={form.roomStatus} options={STATUS_OPTIONS} onChange={(value) => setForm((current) => ({ ...current, roomStatus: value }))} />
-              <div className="flex justify-end gap-3 pt-2"><ActionButton onClick={() => setOpen(false)}>Cancel</ActionButton><ActionButton type="submit" disabled={saving} variant="primary">{saving ? "Saving..." : "Save Room"}</ActionButton></div>
-            </form>
-          </motion.section>
-        </div>
-      )}
+      {formOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#102438]/60 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setFormOpen(false); }}><section role="dialog" aria-modal="true" aria-label={editingId != null ? "Edit room" : "Add room"} className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-center justify-between"><h2 className="text-xl font-bold text-[#183B5B]">{editingId != null ? "Edit room" : "Add room"}</h2><button type="button" aria-label="Close" onClick={() => !saving && setFormOpen(false)}><X size={20} /></button></div>
+        <form onSubmit={save} className="mt-5 grid gap-4 sm:grid-cols-2">{[
+          ["Building", "buildingId", buildings.map((b) => [b.buildingId, b.buildingName])],
+          ["Sharing type", "sharingType", sharingOptions.map((v) => [v, v])],
+          ["Room type", "roomType", [["AC", "AC"], ["NON_AC", "Non-AC"]]],
+          ["Recorded status", "roomStatus", statusOptions.map((v) => [v, v.replaceAll("_", " ")])],
+        ].map(([label, name, options]) => <NanduSelect key={name} label={`${label} *`} placeholder={name === "buildingId" ? "Select building" : `Select ${label.toLowerCase()}`} value={form[name]} options={[...(name === "buildingId" ? [{ value: "", label: "Select building" }] : []), ...options.map(([value, text]) => ({ value: String(value), label: text }))]} onChange={(value) => setForm((current) => ({ ...current, [name]: value }))} />)}
+          <label className="block text-sm font-semibold text-[#183B5B] sm:col-span-2">Room number<input className={`mt-1 ${fieldClass}`} value={form.roomNumber} onChange={(e) => setForm((current) => ({ ...current, roomNumber: e.target.value }))} placeholder="For example, 101A" required /></label>
+          {formError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">{formError}</p>}
+          <div className="flex justify-end gap-2 sm:col-span-2"><button type="button" className={secondaryClass} disabled={saving} onClick={() => setFormOpen(false)}>Cancel</button><button type="submit" className={primaryClass} disabled={saving}>{saving ? "Saving…" : editingId != null ? "Save changes" : "Create room"}</button></div>
+        </form></section></div>}
+      {deleteTarget && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#102438]/60 p-4"><section role="alertdialog" aria-modal="true" aria-label="Confirm room deletion" className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-bold text-[#183B5B]">Delete room {deleteTarget.roomNumber}?</h2><p className="mt-2 text-sm text-slate-600">This action removes the room record. The server will reject deletion if it is not permitted.</p><div className="mt-5 flex justify-end gap-2"><button className={secondaryClass} onClick={() => setDeleteTarget(null)} disabled={saving}>Cancel</button><button className="inline-flex min-h-10 items-center rounded-lg bg-red-700 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={saving} onClick={remove}>{saving ? "Deleting…" : "Delete room"}</button></div></section></div>}
     </main>
   );
 }

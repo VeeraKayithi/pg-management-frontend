@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
-import ActionButton from "../../components/admin/ActionButton.jsx";
-import PremiumSelect from "../../components/admin/PremiumSelect.jsx";
+import { Send, RefreshCw, Eye, X, Check, History, Megaphone, CircleAlert } from "lucide-react";
+import NanduSelect from "../../components/admin/NanduSelect.jsx";
 import useAutoDismiss from "../../hooks/useAutoDismiss.js";
 import {
   getAnnouncementDeliveries,
@@ -256,262 +256,51 @@ export default function Communications() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F5F5F0] px-4 py-6 text-stone-900 sm:px-8 sm:py-8">
+    <main className="min-h-screen bg-[var(--pg-bg)] px-4 py-5 text-[var(--pg-text)] sm:px-6 sm:py-7 xl:px-8">
       <div className="mx-auto max-w-7xl">
-        <AdminHeader
-          title="Communication Center"
-          subtitle="Send one operational announcement to every eligible active Tenant."
-        />
-
-        {(error || success) && (
-          <div className={`mt-5 rounded-2xl border p-4 text-sm ${error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-            {error || success}
-          </div>
-        )}
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <motion.section
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8"
-          >
-            <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">New Communication</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tighter">Create announcement</h2>
-
-            <form onSubmit={requestSend} className="mt-7 space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-stone-500">Title</span>
-                <input
-                  value={form.title}
-                  maxLength={150}
-                  onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Scheduled water maintenance"
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm outline-none transition focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100"
-                />
+        <AdminHeader title="Communications" subtitle="Compose, review and track announcements." />
+        {(error || success) && <div role="alert" className={`mt-5 rounded-xl border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{error || success}</div>}
+        <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.85fr)]">
+          <section className="overflow-visible rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)]">
+            <div className="flex items-center gap-2 border-b border-[var(--pg-border)] px-5 py-4">
+              <Megaphone size={19} className="text-[#183B5B]" /><h2 className="text-base font-bold text-[var(--pg-heading)]">Compose announcement</h2>
+            </div>
+            <form onSubmit={requestSend} className="space-y-5 p-5">
+              <label className="block text-sm font-semibold text-[var(--pg-heading)]">Title *
+                <input required maxLength={150} value={form.title} onChange={(e) => setForm((c) => ({...c,title:e.target.value}))} placeholder="Announcement title" className="mt-2 block w-full rounded-lg border border-[var(--pg-border)] bg-[var(--pg-bg)] px-3 py-3 text-sm text-[var(--pg-text)] outline-none focus:border-[#183B5B]" />
               </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-stone-500">Message</span>
-                <textarea
-                  value={form.message}
-                  maxLength={2000}
-                  rows={7}
-                  onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
-                  placeholder="Write the operational update for all active Tenants..."
-                  className="w-full resize-y rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm leading-relaxed outline-none transition focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100"
-                />
-                <span className="mt-2 block text-right text-xs text-stone-400">{form.message.length}/2000</span>
+              <label className="block text-sm font-semibold text-[var(--pg-heading)]">Message *
+                <textarea required rows={5} maxLength={2000} value={form.message} onChange={(e) => setForm((c) => ({...c,message:e.target.value}))} placeholder="Write the message for your residents" className="mt-2 block w-full resize-y rounded-lg border border-[var(--pg-border)] bg-[var(--pg-bg)] px-3 py-3 text-sm font-normal text-[var(--pg-text)] outline-none focus:border-[#183B5B]" />
+                <span className="mt-1 block text-right text-xs font-normal text-[var(--pg-text-muted)]">{form.message.length} / 2000</span>
               </label>
-
-              <PremiumSelect
-                label="Priority"
-                value={form.priority}
-                options={priorityOptions}
-                onChange={(value) => setForm((current) => ({ ...current, priority: value }))}
-              />
-
-              <div>
-                <p className="mb-3 text-[9px] font-bold uppercase tracking-widest text-stone-500">Delivery channels</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    ["inApp", "In-App Notification", "Appears in the Tenant notification center."],
-                    ["email", "Email", "Uses the reusable Nandu PG email template."],
-                  ].map(([key, label, description]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setForm((current) => ({ ...current, [key]: !current[key] }))}
-                      className={`rounded-2xl border p-4 text-left transition ${form[key] ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-stone-50 text-stone-800 hover:border-stone-400"}`}
-                    >
-                      <span className="text-sm font-black">{label}</span>
-                      <span className={`mt-1 block text-xs leading-relaxed ${form[key] ? "text-stone-300" : "text-stone-500"}`}>{description}</span>
-                    </button>
-                  ))}
+              <NanduSelect label="Priority" value={form.priority} options={priorityOptions} onChange={(value) => setForm((c) => ({...c,priority:value}))} />
+              <div><p className="mb-2 text-sm font-semibold text-[var(--pg-heading)]">Delivery channels</p>
+                <div className="flex flex-wrap gap-3">
+                  {[["inApp","In-app notifications"],["email","Email"]].map(([key,label]) => <button type="button" key={key} aria-pressed={form[key]} onClick={() => setForm((c) => ({...c,[key]:!c[key]}))} className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 text-sm font-semibold ${form[key] ? "border-[#183B5B] bg-[#E8F0F7] text-[#183B5B]" : "border-[var(--pg-border)] text-[var(--pg-text-muted)]"}`}>{form[key] ? <Check size={16}/> : <span className="h-4 w-4 rounded border border-current"/>}{label}</button>)}
                 </div>
               </div>
-
-              <ActionButton type="submit" variant="primary" className="w-full sm:w-auto">
-                Review Announcement
-              </ActionButton>
+              <div className="flex justify-end border-t border-[var(--pg-border)] pt-4"><button type="submit" disabled={processing} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#183B5B] px-5 text-sm font-bold text-white hover:bg-[#102F4B] disabled:opacity-50"><Eye size={17}/>Review and send</button></div>
             </form>
-          </motion.section>
-
-          <section className="space-y-6">
-            <div className="rounded-[2rem] border border-stone-200 bg-stone-900 p-6 text-white shadow-sm sm:p-8">
-              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">Recipient Preview</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tighter">Eligible portal Tenants</h2>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                {[
-                  ["Active Tenants", preview?.activeTenantCount ?? 0],
-                  ["Eligible Tenants", preview?.eligibleTenantCount ?? 0],
-                  ["In-App Eligible", preview?.inAppEligibleCount ?? 0],
-                  ["Without Portal", preview?.tenantsWithoutPortalAccount ?? 0],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl bg-white/10 p-4">
-                    <p className="text-2xl font-black">{value}</p>
-                    <p className="mt-1 text-[8px] font-bold uppercase tracking-widest text-stone-400">{label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
-              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">Delivery Rules</p>
-              <ul className="mt-4 space-y-3 text-sm leading-relaxed text-stone-600">
-                <li>Only Tenants with status ACTIVE are considered.</li>
-                <li>Tenants without a portal account are excluded.</li>
-                <li>In-app delivery requires an active linked portal account.</li>
-                <li>Email delivery requires an active account and verified email.</li>
-                <li>One failed delivery does not stop other recipients.</li>
-              </ul>
-            </div>
           </section>
-        </div>
-
-        <section className="mt-6 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">Communication History</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tighter">Recent announcements</h2>
+          <aside className="space-y-5">
+            <div className="rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)]">
+              <h2 className="border-b border-[var(--pg-border)] px-5 py-4 text-base font-bold text-[var(--pg-heading)]">Recipient preview</h2>
+              <div className="grid grid-cols-2 gap-3 p-5">
+                {[["Active residents",preview?.activeTenantCount],["Eligible recipients",preview?.eligibleTenantCount],["In-app eligible",preview?.inAppEligibleCount],["Without portal",preview?.tenantsWithoutPortalAccount]].map(([label,value])=><div key={label} className="rounded-lg bg-[var(--pg-bg)] p-3"><p className="text-2xl font-bold text-[#183B5B]">{value ?? "—"}</p><p className="mt-1 text-xs text-[var(--pg-text-muted)]">{label}</p></div>)}
+              </div>
+              <p className="px-5 pb-5 text-xs text-[var(--pg-text-muted)]">Recipient counts come from the server for the selected channels.</p>
             </div>
-            <ActionButton onClick={loadHistory}>Refresh</ActionButton>
-          </div>
-
-          <div className="mt-6 space-y-3">
-            {loading ? (
-              <div className="h-32 animate-pulse rounded-2xl bg-stone-100" />
-            ) : history.length === 0 ? (
-              <p className="rounded-2xl bg-stone-50 p-8 text-center text-sm text-stone-500">No announcements have been sent yet.</p>
-            ) : history.map((item) => (
-              <motion.article layout key={item.announcementId} className="rounded-2xl border border-stone-200 p-5 hover:shadow-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-stone-100 px-3 py-1 text-[7px] font-bold uppercase tracking-widest">{item.priority}</span>
-                      <span className="rounded-full bg-stone-900 px-3 py-1 text-[7px] font-bold uppercase tracking-widest text-white">{item.status}</span>
-                    </div>
-                    <h3 className="mt-3 text-xl font-black">{item.title}</h3>
-                    <p className="mt-2 line-clamp-2 text-sm text-stone-600">{item.message}</p>
-                    <p className="mt-3 text-xs text-stone-400">{formatDate(item.createdAt)}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">{item.sentCount} sent · {item.failedCount} failed · {item.skippedCount} skipped</p>
-                    <ActionButton className="mt-3" onClick={() => showDeliveries(item)}>Delivery Report</ActionButton>
-                  </div>
-                </div>
-              </motion.article>
-            ))}
-          </div>
+            <div className="rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)] p-5"><h3 className="text-sm font-bold text-[var(--pg-heading)]">Delivery rules</h3><p className="mt-2 text-sm leading-6 text-[var(--pg-text-muted)]">Only eligible active residents with portal accounts are considered. Email delivery additionally requires an eligible email address. Individual failures appear in delivery reports.</p></div>
+          </aside>
+        </div>
+        <section className="mt-6 overflow-hidden rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--pg-border)] px-5 py-4"><h2 className="flex items-center gap-2 text-base font-bold text-[var(--pg-heading)]"><History size={18}/>Announcement history</h2><button type="button" onClick={loadHistory} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[var(--pg-border)] px-3 py-2 text-xs font-semibold text-[var(--pg-heading)]"><RefreshCw size={15}/> Refresh</button></div>
+          {loading ? <p className="p-6 text-sm text-[var(--pg-text-muted)]">Loading announcements…</p> : !history.length ? <p className="p-6 text-sm text-[var(--pg-text-muted)]">No announcements sent yet.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[690px] text-left text-sm"><thead className="bg-[var(--pg-bg)] text-xs uppercase tracking-wide text-[var(--pg-text-muted)]"><tr><th className="px-5 py-3">Announcement</th><th className="px-4 py-3">Created</th><th className="px-4 py-3">Delivery</th><th className="px-5 py-3">Action</th></tr></thead><tbody>{history.map((a)=><tr key={a.announcementId} className="border-t border-[var(--pg-border)]"><td className="px-5 py-4"><p className="font-semibold text-[var(--pg-heading)]">{a.title}</p><p className="mt-1 max-w-sm truncate text-xs text-[var(--pg-text-muted)]">{a.priority} · {a.status} · {a.message}</p></td><td className="px-4 py-4 text-[var(--pg-text-muted)]">{formatDate(a.createdAt)}</td><td className="px-4 py-4 text-xs">{a.sentCount ?? 0} sent · {a.failedCount ?? 0} failed · {a.skippedCount ?? 0} skipped</td><td className="px-5 py-4"><button type="button" onClick={()=>showDeliveries(a)} className="inline-flex items-center gap-1 font-semibold text-[#183B5B] hover:underline">Delivery details <Eye size={15}/></button></td></tr>)}</tbody></table></div>}
         </section>
       </div>
-
       <AnimatePresence>
-        {showConfirmation && (
-          <motion.div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-950/45 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{
-                opacity: 0,
-                y: 18,
-                scale: 0.98,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                scale: 1,
-              }}
-              exit={{
-                opacity: 0,
-                y: 12,
-                scale: 0.98,
-              }}
-              transition={{
-                duration: 0.22,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className="w-full max-w-xl rounded-[2rem] bg-white p-7 shadow-2xl"
-            >
-              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
-                Final Review
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tighter">
-                Send to {preview?.eligibleTenantCount ?? 0} eligible Tenants?
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-stone-500">
-                {preview?.activeTenantCount ?? 0} active Tenant records were found.{" "}
-                {preview?.tenantsWithoutPortalAccount ?? 0} do not have a portal
-                account and will be skipped.
-              </p>
-
-              <div className="mt-5 rounded-2xl bg-stone-50 p-5">
-                <p className="font-black">
-                  {form.title}
-                </p>
-
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-600">
-                  {form.message}
-                </p>
-
-                <p className="mt-4 text-xs font-bold uppercase tracking-widest text-stone-400">
-                  {form.priority} · {channels.join(" + ")}
-                </p>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <ActionButton
-                  type="button"
-                  onClick={() => setShowConfirmation(false)}
-                  disabled={processing}
-                >
-                  Cancel
-                </ActionButton>
-
-                <ActionButton
-                  type="button"
-                  variant="primary"
-                  onClick={confirmSend}
-                  disabled={processing}
-                >
-                  {processing
-                    ? "Sending..."
-                    : "Send Announcement"}
-                </ActionButton>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {selectedAnnouncement && (
-          <motion.div className="fixed inset-0 z-[210] flex items-center justify-center bg-stone-950/45 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} className="max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-7 shadow-2xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">Delivery Report</p>
-                  <h2 className="mt-2 text-2xl font-black">{selectedAnnouncement.title}</h2>
-                </div>
-                <ActionButton onClick={() => { setSelectedAnnouncement(null); setDeliveries([]); }}>Close</ActionButton>
-              </div>
-              <div className="mt-6 space-y-2">
-                {deliveries.map((delivery) => (
-                  <div key={delivery.deliveryId} className="grid gap-2 rounded-2xl border border-stone-200 p-4 sm:grid-cols-[1fr_120px_120px] sm:items-center">
-                    <div>
-                      <p className="font-bold">{delivery.tenantName}</p>
-                      <p className="text-xs text-stone-500">{delivery.email}</p>
-                      {delivery.failureReason && <p className="mt-1 text-xs text-rose-600">{delivery.failureReason}</p>}
-                    </div>
-                    <span className="text-xs font-bold">{delivery.channel}</span>
-                    <span className={`text-xs font-black ${delivery.status === "SENT" ? "text-emerald-600" : delivery.status === "FAILED" ? "text-rose-600" : "text-stone-500"}`}>{delivery.status}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        {showConfirmation && <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" role="presentation"><section role="dialog" aria-modal="true" aria-label="Review announcement" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase text-[#B33A3A]">Final review</p><h2 className="mt-1 text-xl font-bold text-[#183B5B]">Send announcement?</h2></div><button type="button" aria-label="Close" disabled={processing} onClick={()=>setShowConfirmation(false)}><X size={20}/></button></div><p className="mt-3 text-sm text-slate-600">{preview?.eligibleTenantCount ?? 0} eligible recipients · {channels.join(" + ")}</p><div className="mt-4 rounded-lg border border-slate-200 p-4"><h3 className="font-bold text-[#183B5B]">{form.title}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-700">{form.message}</p><p className="mt-3 text-xs font-semibold text-slate-500">Priority: {form.priority}</p></div>{error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}<div className="mt-6 flex flex-wrap justify-end gap-2"><button type="button" disabled={processing} onClick={()=>setShowConfirmation(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button><button type="button" disabled={processing} onClick={confirmSend} className="inline-flex items-center gap-2 rounded-lg bg-[#183B5B] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Send size={16}/>{processing ? "Sending…" : "Confirm and send"}</button></div></section></motion.div>}
+        {selectedAnnouncement && <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[210] flex items-center justify-center bg-black/50 p-4"><section role="dialog" aria-modal="true" aria-label="Delivery details" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase text-[#B33A3A]">Delivery report</p><h2 className="mt-1 text-xl font-bold text-[#183B5B]">{selectedAnnouncement.title}</h2></div><button type="button" aria-label="Close" onClick={()=>{setSelectedAnnouncement(null);setDeliveries([]);}}><X size={20}/></button></div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[550px] text-left text-sm"><thead className="bg-[#F7F5EF] text-xs text-slate-500"><tr><th className="p-3">Resident</th><th className="p-3">Channel</th><th className="p-3">Outcome</th><th className="p-3">Details</th></tr></thead><tbody>{deliveries.map((d)=><tr key={d.deliveryId} className="border-t border-slate-200"><td className="p-3 font-semibold">{d.tenantName || d.email || "—"}</td><td className="p-3">{d.channel}</td><td className="p-3">{d.status}</td><td className="p-3 text-xs text-red-700">{d.failureReason || "—"}</td></tr>)}</tbody></table>{!deliveries.length && <p className="py-5 text-sm text-slate-500">No delivery records available.</p>}</div></section></motion.div>}
       </AnimatePresence>
     </main>
   );

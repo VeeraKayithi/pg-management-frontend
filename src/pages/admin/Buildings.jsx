@@ -1,304 +1,144 @@
-import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, Building2, LoaderCircle, Plus, RefreshCw, Search, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
-import ActionButton from "../../components/admin/ActionButton.jsx";
-import PremiumSelect from "../../components/admin/PremiumSelect.jsx";
-import { createBuilding, deleteBuilding, getAllBuildings, updateBuilding, } from "../../services/buildingService.js";
-import useAutoDismiss from "../../hooks/useAutoDismiss.js";
+import NanduSelect from "../../components/admin/NanduSelect.jsx";
+import { createBuilding, deleteBuilding, getAllBuildings, updateBuilding } from "../../services/buildingService.js";
 import { getRole } from "../../services/authService.js";
+import { getAllRooms } from "../../services/roomService.js";
 
-const EMPTY_FORM = {
-  buildingName: "",
-  buildingType: "MENS_PG",
-  address: "",
-  city: "Hyderabad",
-};
-
-const BUILDING_TYPES = [
-  { value: "MENS_PG", label: "Men's PG" },
-  { value: "WOMENS_PG", label: "Women's PG" },
-];
-
-const INPUT_CLASS =
-  "w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm text-stone-900 outline-none transition-all duration-200 placeholder:text-stone-400 hover:border-stone-400 focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100";
-
-function errorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+const EMPTY = { buildingName: "", buildingType: "MENS_PG", address: "", city: "Hyderabad" };
+const fieldClass = "w-full rounded-lg border border-[var(--pg-border)] bg-[var(--pg-surface)] px-3 py-2.5 text-sm text-[var(--pg-text)] outline-none focus:border-[#183B5B] focus:ring-2 focus:ring-[#183B5B]/10";
+const typeLabel = (t) => t === "MENS_PG" ? "Men's PG" : t === "WOMENS_PG" ? "Women's PG" : t || "—";
+function messageOf(error, fallback) {
+  const data = error?.response?.data;
+  if (typeof data === "string" && data.trim()) return data;
+  if (typeof data?.message === "string") return data.message;
+  if (data && typeof data === "object") {
+    const issues = Object.values(data).filter((x) => typeof x === "string");
+    if (issues.length) return issues.join(" ");
+  }
+  return fallback;
 }
 
 export default function Buildings() {
+  const navigate = useNavigate();
+  const role = (getRole() || "").replace(/^ROLE_/i, "").toUpperCase();
+  const isAdmin = role === "ADMIN";
+  const mayEdit = isAdmin || role === "BUILDING_ADMIN";
   const [buildings, setBuildings] = useState([]);
-  const [formData, setFormData] = useState(EMPTY_FORM);
-  const [editingId, setEditingId] = useState(null);
-  const [formOpen, setFormOpen] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [processingId, setProcessingId] = useState(null);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const role = getRole()
-    ?.replace("ROLE_", "")
-    ?.toUpperCase();
+  const [success, setSuccess] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(EMPTY);
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
-  const isSuperAdmin = role === "ADMIN";
-
-  const canEditBuilding =
-    role === "ADMIN" ||
-    role === "BUILDING_ADMIN";
-
-  const clearError = useCallback(() => {
+  const load = useCallback(async () => {
+    setLoading(true);
     setError("");
-  }, []);
-
-  const clearMessage = useCallback(() => {
-    setMessage("");
-  }, []);
-
-  useAutoDismiss(error, clearError, 4000);
-  useAutoDismiss(message, clearMessage, 4000);
-
-  const loadBuildings = async () => {
     try {
-      setLoading(true);
-      setError("");
-      const data = await getAllBuildings();
-      setBuildings(Array.isArray(data) ? data : []);
-    } catch (requestError) {
-      setError(errorMessage(requestError, "Unable to load buildings."));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadBuildings();
+      const [result, roomData] = await Promise.all([getAllBuildings(), getAllRooms()]);
+      setBuildings(Array.isArray(result) ? result : []);
+      setRooms(Array.isArray(roomData) ? roomData : []);
+      setLoaded(true);
+    } catch (err) {
+      setError(messageOf(err, "Unable to load buildings."));
+    } finally { setLoading(false); }
   }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const changeField = (event) => {
-    const { name, value } = event.target;
-    setFormData((current) => ({ ...current, [name]: value }));
+  const visible = useMemo(() => buildings.filter((b) =>
+    `${b.buildingName || ""} ${b.city || ""} ${b.address || ""}`.toLowerCase().includes(search.trim().toLowerCase())
+  ), [buildings, search]);
+
+  const openCreate = () => { setForm({ ...EMPTY }); setEditing({}); setFormError(""); setSuccess(""); };
+  const openEdit = (b) => {
+    if (!mayEdit) return;
+    setEditing(b);
+    setForm({ buildingName: b.buildingName || "", buildingType: b.buildingType || "MENS_PG", address: b.address || "", city: b.city || "Hyderabad" });
+    setFormError(""); setSuccess("");
   };
-
-  const openCreate = () => {
-    setEditingId(null);
-    setFormData(EMPTY_FORM);
-    setError("");
-    setMessage("");
-    setFormOpen(true);
-  };
-
-  const openEdit = (building) => {
-    setEditingId(building.buildingId);
-    setFormData({
-      buildingName: building.buildingName || "",
-      buildingType: building.buildingType || "MENS_PG",
-      address: building.address || "",
-      city: building.city || "Hyderabad",
-    });
-    setError("");
-    setMessage("");
-    setFormOpen(true);
-  };
-
-  const closeForm = () => {
-    if (saving) return;
-    setFormOpen(false);
-    setEditingId(null);
-    setFormData(EMPTY_FORM);
-  };
-
-  const submit = async (event) => {
+  const save = async (event) => {
     event.preventDefault();
-    setError("");
-    setMessage("");
-
-    const payload = {
-      buildingName: formData.buildingName.trim(),
-      buildingType: formData.buildingType,
-      address: formData.address.trim(),
-      city: formData.city.trim(),
-    };
-
-    if (!payload.buildingName || !payload.address || !payload.city) {
-      setError("Please complete all building fields.");
-      return;
-    }
-
+    const payload = { ...form, buildingName: form.buildingName.trim(), address: form.address.trim(), city: form.city.trim() };
+    if (!payload.buildingName || !payload.address || !payload.city) { setFormError("Complete all required fields."); return; }
+    setSaving(true); setFormError("");
     try {
-      setSaving(true);
-      if (editingId) {
-        await updateBuilding(editingId, payload);
-        setMessage("Building updated successfully.");
-      } else {
-        await createBuilding(payload);
-        setMessage("Building created successfully.");
-      }
-      setFormOpen(false);
-      await loadBuildings();
-    } catch (requestError) {
-      setError(errorMessage(requestError, "Unable to save building."));
-    } finally {
-      setSaving(false);
-    }
+      if (editing?.buildingId != null) await updateBuilding(editing.buildingId, payload);
+      else await createBuilding(payload);
+      setEditing(null);
+      await load();
+      setSuccess("Building saved successfully.");
+    } catch (err) { setFormError(messageOf(err, "Unable to save building.")); }
+    finally { setSaving(false); }
   };
-
-  const remove = async (building) => {
-    if (!window.confirm(`Delete ${building.buildingName}?`)) return;
-
+  const askDelete = (b) => { setDeleting(b); setDeleteError(""); };
+  const confirmDelete = async () => {
+    if (!deleting || !isAdmin) return;
+    setDeleteBusy(true); setDeleteError("");
     try {
-      setProcessingId(building.buildingId);
-      setError("");
-      setMessage("");
-      await deleteBuilding(building.buildingId);
-      setMessage("Building deleted successfully.");
-      await loadBuildings();
-    } catch (requestError) {
-      setError(errorMessage(requestError, "Unable to delete building."));
-    } finally {
-      setProcessingId(null);
-    }
+      await deleteBuilding(deleting.buildingId);
+      setDeleting(null); await load(); setSuccess("Building deleted.");
+    } catch (err) { setDeleteError(messageOf(err, "Unable to delete building.")); }
+    finally { setDeleteBusy(false); }
   };
 
   return (
-    <main className="min-h-screen bg-[#F5F5F0] px-4 py-6 text-stone-900 sm:px-8">
+    <main className="min-h-screen bg-[var(--pg-bg)] px-4 py-6 text-[var(--pg-text)] sm:px-6 xl:px-8">
       <div className="mx-auto max-w-7xl">
-        <AdminHeader title="Buildings" subtitle="Create and maintain PG campuses." />
-
-        <section className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
-              Registered Campuses
-            </p>
-            <h2 className="mt-2 text-3xl font-black tracking-tighter">
-              {buildings.length} buildings
-            </h2>
+        <AdminHeader title="Buildings" subtitle="Manage authorized properties and building details." />
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex w-full max-w-md items-center gap-2 rounded-lg border border-[var(--pg-border)] bg-[var(--pg-surface)] px-3 focus-within:border-[#183B5B]">
+            <Search size={17} className="text-[var(--pg-text-muted)]" />
+            <input className="min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--pg-text-muted)]" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search building name or city" aria-label="Search buildings" />
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={load} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--pg-border)] bg-[var(--pg-surface)] px-4 text-sm font-semibold disabled:opacity-50"><RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh</button>
+            {isAdmin && <button type="button" onClick={openCreate} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#183B5B] px-4 text-sm font-semibold text-white hover:bg-[#102F4B]"><Plus size={16} /> Add building</button>}
           </div>
-
-          <div className="flex gap-3">
-            
-
-            {isSuperAdmin && (
-              <ActionButton onClick={openCreate} variant="primary">
-                Add Building
-              </ActionButton>
-            )}
+        </div>
+        {error && <div role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error} <button onClick={load} className="ml-2 font-bold underline">Retry</button></div>}
+        {success && <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>}
+        <section className="mt-4 overflow-hidden rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)]">
+          <div className="border-b border-[var(--pg-border)] px-5 py-3 text-sm font-bold text-[var(--pg-heading)]">Registered properties {loaded && <span className="ml-2 text-xs font-normal text-[var(--pg-text-muted)]">{visible.length} shown</span>}</div>
+          <div className="hidden grid-cols-[minmax(0,2fr)_minmax(125px,1fr)_minmax(75px,.55fr)_minmax(100px,.7fr)] gap-3 border-b border-[var(--pg-border)] bg-[var(--pg-surface-soft)]/50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[var(--pg-text-muted)] md:grid">
+            <span>Building</span><span>Classification</span><span>Rooms</span><span>Action</span>
           </div>
+          {loading && !loaded ? <div className="flex items-center gap-2 p-6 text-sm text-[var(--pg-text-muted)]"><LoaderCircle className="animate-spin" size={18} /> Loading properties...</div> : visible.length === 0 ? <div className="p-8 text-center text-sm text-[var(--pg-text-muted)]">{search ? "No buildings match your search." : "No buildings available to your account."}</div> : visible.map((b) => (
+            <div key={b.buildingId} className="grid gap-3 border-b border-[var(--pg-border)] px-5 py-4 last:border-0 md:grid-cols-[minmax(0,2fr)_minmax(125px,1fr)_minmax(75px,.55fr)_minmax(100px,.7fr)] md:items-center">
+              <div className="flex min-w-0 items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--pg-surface-soft)] text-[#183B5B]"><Building2 size={19} /></span><div className="min-w-0"><p className="font-bold text-[var(--pg-heading)]">{b.buildingName}</p><p className="mt-1 break-words text-xs text-[var(--pg-text-muted)]">{[b.address, b.city].filter(Boolean).join(", ") || "Address not provided"}</p></div></div>
+              <div className="text-sm"><span className="rounded-full bg-[var(--pg-surface-soft)] px-3 py-1 text-xs font-semibold text-[var(--pg-heading)]">{typeLabel(b.buildingType)}</span></div>
+              <span className="text-sm text-[var(--pg-text-muted)]">{rooms.filter((r) => String(r.buildingId) === String(b.buildingId)).length}</span>
+              <button type="button" onClick={() => mayEdit ? openEdit(b) : navigate("/admin/rooms")} className="inline-flex w-fit items-center gap-1 text-sm font-bold text-[#183B5B] hover:underline">{mayEdit ? "View / edit" : "View rooms"}<ArrowRight size={15} /></button>
+            </div>
+          ))}
         </section>
-
-        {error && (
-          <p className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {message}
-          </p>
-        )}
-
-        {loading ? (
-          <section className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="h-64 animate-pulse rounded-[2rem] bg-white" />
-            ))}
-          </section>
-        ) : (
-          <section className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {buildings.map((building, index) => (
-              <motion.article
-                key={building.buildingId}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ y: -4 }}
-                transition={{ delay: index * 0.05 }}
-                className="flex min-h-64 flex-col rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-lg"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <span className="rounded-full border border-stone-200 bg-stone-100 px-3 py-1.5 text-[8px] font-bold uppercase tracking-widest text-stone-600">
-                    {building.buildingType}
-                  </span>
-                  <span className="text-xs font-bold text-stone-300">#{building.buildingId}</span>
-                </div>
-
-                <h3 className="mt-6 text-3xl font-black tracking-tighter">
-                  {building.buildingName}
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed text-stone-500">
-                  {[building.address, building.city].filter(Boolean).join(", ")}
-                </p>
-
-                {(canEditBuilding || isSuperAdmin) && (
-                  <div className="mt-auto flex gap-3 pt-8">
-
-                    {canEditBuilding && (
-                      <ActionButton
-                        onClick={() => openEdit(building)}
-                        className="flex-1"
-                      >
-                        Edit
-                      </ActionButton>
-                    )}
-
-                    {isSuperAdmin && (
-                      <ActionButton
-                        onClick={() => remove(building)}
-                        disabled={processingId === building.buildingId}
-                        variant="danger"
-                        className="flex-1"
-                      >
-                        {processingId === building.buildingId
-                          ? "Deleting..."
-                          : "Delete"}
-                      </ActionButton>
-                    )}
-
-                  </div>
-                )}
-              </motion.article>
-            ))}
-          </section>
-        )}
+        <p className="mt-4 text-xs leading-5 text-[var(--pg-text-muted)]">Building admins may edit only their assigned property. Supervisors have read-only access. Building deletion is subject to server checks and is blocked when rooms are registered.</p>
       </div>
 
-      {formOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm" onClick={closeForm}>
-          <motion.section
-            initial={{ opacity: 0, y: 18, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="w-full max-w-xl rounded-[2rem] bg-white p-7 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between">
-              <h2 className="text-3xl font-black tracking-tighter">
-                {editingId ? "Edit building" : "Add building"}
-              </h2>
-              <ActionButton onClick={closeForm} variant="soft">Close</ActionButton>
-            </div>
+      {editing && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setEditing(null); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="building-form-title" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-[var(--pg-surface)] p-5 shadow-2xl sm:p-7">
+          <div className="flex items-start justify-between"><div><h2 id="building-form-title" className="text-xl font-black text-[var(--pg-heading)]">{editing.buildingId != null ? "Edit building" : "Add building"}</h2><p className="mt-1 text-sm text-[var(--pg-text-muted)]">Update authorized building details.</p></div><button type="button" aria-label="Close" disabled={saving} onClick={() => setEditing(null)}><X size={20} /></button></div>
+          <form onSubmit={save} className="mt-6 grid gap-4 sm:grid-cols-2">
+            <label className="text-xs font-bold text-[var(--pg-heading)]">Building name *<input autoFocus required name="buildingName" value={form.buildingName} onChange={(e) => setForm((f) => ({ ...f, buildingName: e.target.value }))} className={`mt-2 ${fieldClass}`} /></label>
+            <NanduSelect label="Classification *" value={form.buildingType} options={[{ value: "MENS_PG", label: "Men's PG" }, { value: "WOMENS_PG", label: "Women's PG" }]} onChange={(value) => setForm((f) => ({ ...f, buildingType: value }))} />
+            <label className="text-xs font-bold text-[var(--pg-heading)]">Address *<textarea required rows={3} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className={`mt-2 ${fieldClass}`} /></label>
+            <label className="text-xs font-bold text-[var(--pg-heading)]">City *<input required value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className={`mt-2 ${fieldClass}`} /></label>
+            {formError && <p role="alert" className="sm:col-span-2 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{formError}</p>}
+            <div className="flex flex-wrap gap-2 sm:col-span-2"><button type="submit" disabled={saving} className="min-h-11 rounded-lg bg-[#183B5B] px-5 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : editing.buildingId != null ? "Save changes" : "Create building"}</button><button type="button" disabled={saving} onClick={() => setEditing(null)} className="min-h-11 rounded-lg border border-[var(--pg-border)] px-5 text-sm font-semibold">Cancel</button>{isAdmin && editing.buildingId != null && <button type="button" onClick={() => { const current = editing; setEditing(null); askDelete(current); }} className="ml-auto min-h-11 text-sm font-semibold text-rose-700">Delete building</button>}</div>
+          </form>
+        </section>
+      </div>}
 
-            <form onSubmit={submit} className="mt-6 space-y-5">
-              <input name="buildingName" value={formData.buildingName} onChange={changeField} placeholder="Building name" className={INPUT_CLASS} />
-
-              <PremiumSelect
-                label="Building Type"
-                value={formData.buildingType}
-                options={BUILDING_TYPES}
-                onChange={(value) => setFormData((current) => ({ ...current, buildingType: value }))}
-              />
-
-              <textarea name="address" value={formData.address} onChange={changeField} placeholder="Address" rows="3" className={`${INPUT_CLASS} resize-none`} />
-              <input name="city" value={formData.city} onChange={changeField} placeholder="City" className={INPUT_CLASS} />
-
-              <div className="flex justify-end gap-3 pt-2">
-                <ActionButton onClick={closeForm}>Cancel</ActionButton>
-                <ActionButton type="submit" disabled={saving} variant="primary">
-                  {saving ? "Saving..." : "Save Building"}
-                </ActionButton>
-              </div>
-            </form>
-          </motion.section>
-        </div>
-      )}
+      {deleting && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/45 p-4"><section role="alertdialog" aria-modal="true" aria-labelledby="delete-title" className="w-full max-w-md rounded-2xl bg-[var(--pg-surface)] p-6 shadow-2xl"><h2 id="delete-title" className="text-xl font-black text-[var(--pg-heading)]">Delete building?</h2><p className="mt-3 text-sm text-[var(--pg-text-muted)]">Delete <strong>{deleting.buildingName}</strong>? The backend will reject deletion if rooms are registered.</p>{deleteError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{deleteError}</p>}<div className="mt-5 flex gap-2"><button disabled={deleteBusy} onClick={confirmDelete} className="min-h-11 rounded-lg bg-rose-700 px-5 text-sm font-bold text-white disabled:opacity-50">{deleteBusy ? "Deleting..." : "Delete building"}</button><button disabled={deleteBusy} onClick={() => setDeleting(null)} className="min-h-11 rounded-lg border border-[var(--pg-border)] px-5 text-sm font-semibold">Cancel</button></div></section></div>}
     </main>
   );
 }

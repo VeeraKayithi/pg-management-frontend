@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { Eye, EyeOff, KeyRound, ArrowLeft, LoaderCircle, CheckCircle2, AlertCircle } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
@@ -120,149 +120,30 @@ export default function ActivateAccount() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F5F5F0] px-4 py-8 text-stone-900 sm:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-lg items-center justify-center">
-        <motion.section
-          initial={{ opacity: 0, y: 18, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="w-full rounded-[2rem] border border-stone-200 bg-white p-6 shadow-xl sm:p-8"
-        >
-          <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50">
-              <img
-                src="/nandu-logo.svg"
-                alt="Nandu PG"
-                className="h-8 w-8 object-contain"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6 text-center">
-            <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
-              Account Activation
-            </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tighter">
-              Create your private password
-            </h1>
-            <p className="mt-2 text-sm leading-relaxed text-stone-500">
-              Complete email verification to activate your Nandu PG portal account.
-            </p>
-          </div>
-
-          {isValidating ? (
-            <div className="mt-8 space-y-4">
-              <div className="h-14 animate-pulse rounded-xl bg-stone-100" />
-              <div className="h-14 animate-pulse rounded-xl bg-stone-100" />
-              <div className="h-12 animate-pulse rounded-full bg-stone-200" />
-            </div>
-          ) : (
-            <>
-              {validation?.valid && (
-                <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-stone-400">
-                    Activating account for
-                  </p>
-                  <p className="mt-1 font-black text-stone-900">
-                    {validation.tenantName || validation.username}
-                  </p>
-                  <p className="mt-1 text-xs text-stone-500">
-                    Username: {validation.username}
-                  </p>
-                </div>
-              )}
-
-              {error && (
-                <div
-                  role="alert"
-                  className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
-                >
-                  {error}
-                </div>
-              )}
-
-              {successMessage && (
-                <div
-                  role="status"
-                  className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700"
-                >
-                  {successMessage}
-                </div>
-              )}
-
-              {validation?.valid && !successMessage && (
-                <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-                  <label className="block">
-                    <span className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-stone-500">
-                      New Password
-                    </span>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(event) => setNewPassword(event.target.value)}
-                        autoComplete="new-password"
-                        placeholder="Create a private password"
-                        className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 pr-16 text-sm outline-none transition focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((current) => !current)}
-                        className="absolute inset-y-0 right-4 text-[8px] font-bold uppercase tracking-widest text-stone-500"
-                      >
-                        {showPassword ? "Hide" : "Show"}
-                      </button>
-                    </div>
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-stone-500">
-                      Confirm Password
-                    </span>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      autoComplete="new-password"
-                      placeholder="Re-enter your private password"
-                      className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm outline-none transition focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100"
-                    />
-                  </label>
-
-                  <p className="text-xs leading-relaxed text-stone-500">
-                    Use 8 to 72 characters with at least one uppercase letter,
-                    one lowercase letter, and one number.
-                  </p>
-
-                  <motion.button
-                    type="submit"
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    disabled={isSubmitting}
-                    className="w-full rounded-full bg-stone-900 px-6 py-3.5 text-[9px] font-bold uppercase tracking-widest text-white shadow-sm transition hover:bg-stone-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSubmitting ? "Activating..." : "Activate Account"}
-                  </motion.button>
-                </form>
-              )}
-
-              {!validation?.valid && (
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-stone-500">
-                    Ask the administrator to resend the activation email.
-                  </p>
-                  <Link
-                    to="/login"
-                    className="mt-5 inline-flex rounded-full border border-stone-300 px-6 py-3 text-[9px] font-bold uppercase tracking-widest transition hover:border-stone-900"
-                  >
-                    Return to Login
-                  </Link>
-                </div>
-              )}
-            </>
-          )}
-        </motion.section>
-      </div>
+    <main className="flex min-h-screen items-center justify-center bg-[#F3F6F8] px-4 py-10 text-[#183B5B]">
+      <section className="w-full max-w-[490px] overflow-hidden rounded-xl border border-[#D8E3EB] bg-white shadow-[0_16px_50px_rgba(24,59,91,0.07)]">
+        <div className="h-1.5 bg-[#183B5B]" />
+        <div className="p-6 sm:p-9">
+          <div className="mb-6 flex items-center gap-3"><img src="/nandu_group_of_hostels_logo.svg" alt="NANDU" className="h-12 w-12 rounded-lg border border-[#E2EAF0] p-1"/><div><p className="text-sm font-extrabold tracking-wide">NANDU</p><p className="text-xs text-[#7A8C99]">GROUP OF HOSTELS</p></div></div>
+          <div className="mb-7 flex h-11 w-11 items-center justify-center rounded-lg bg-[#E9F1F7] text-[#183B5B]"><KeyRound size={22}/></div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#66849A]">Account activation</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight">Create your password</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6A7F8E]">Verify your invitation and activate your portal account.</p>
+          {isValidating ? <div role="status" className="mt-7 flex items-center gap-3 rounded-lg bg-[#F2F6F9] px-4 py-5 text-sm text-[#5F7789]"><LoaderCircle size={18} className="animate-spin"/> Verifying activation link...</div> : <>
+            {validation?.valid && <div className="mt-6 rounded-lg border border-[#D8E3EB] bg-[#F6F9FB] px-4 py-3"><p className="text-xs font-semibold text-[#6B8394]">Activating account for</p><p className="mt-1 text-sm font-semibold">{validation.tenantName || validation.username}</p><p className="mt-1 text-xs text-[#6B8394]">Username: {validation.username}</p></div>}
+            {error && <div role="alert" className="mt-5 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><AlertCircle size={18} className="shrink-0"/>{error}</div>}
+            {successMessage && <div role="status" className="mt-5 flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><CheckCircle2 size={18} className="shrink-0"/>{successMessage}</div>}
+            {validation?.valid && !successMessage && <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+              <div><label htmlFor="newPassword" className="mb-2 block text-sm font-semibold">New password</label><div className="relative"><input id="newPassword" type={showPassword?"text":"password"} value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Create a password" disabled={isSubmitting} className="h-12 w-full rounded-lg border border-[#D4E0E8] bg-white px-4 pr-12 text-sm outline-none focus:border-[#477A9E] focus:ring-2 focus:ring-[#477A9E]/15"/><button type="button" onClick={()=>setShowPassword(v=>!v)} aria-label={showPassword?"Hide passwords":"Show passwords"} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#728899]">{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></div>
+              <div><label htmlFor="confirmPassword" className="mb-2 block text-sm font-semibold">Confirm password</label><input id="confirmPassword" type={showPassword?"text":"password"} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password" placeholder="Re-enter password" disabled={isSubmitting} className="h-12 w-full rounded-lg border border-[#D4E0E8] bg-white px-4 text-sm outline-none focus:border-[#477A9E] focus:ring-2 focus:ring-[#477A9E]/15"/></div>
+              <p className="text-xs leading-5 text-[#6A7F8E]">8–72 characters, including uppercase, lowercase, and a number.</p>
+              <button type="submit" disabled={isSubmitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#183B5B] px-5 text-sm font-semibold text-white transition hover:bg-[#102F4B] disabled:opacity-60">{isSubmitting && <LoaderCircle size={18} className="animate-spin"/>}{isSubmitting?"Activating...":"Activate account"}</button>
+            </form>}
+            {!validation?.valid && <p className="mt-5 text-sm text-[#6A7F8E]">Ask your administrator to resend the activation email.</p>}
+          </>}
+          <Link to="/login" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[#315E7D] hover:text-[#123653]"><ArrowLeft size={16}/> Back to sign in</Link>
+        </div>
+      </section>
     </main>
   );
 }

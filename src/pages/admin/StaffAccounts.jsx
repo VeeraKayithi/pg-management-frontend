@@ -1,611 +1,190 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
-import { motion } from "framer-motion";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, CircleAlert, Plus, Search, ShieldCheck, UserRound, X } from "lucide-react";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
-import ActionButton from "../../components/admin/ActionButton.jsx";
-import PremiumSelect from "../../components/admin/PremiumSelect.jsx";
-
+import NanduSelect from "../../components/admin/NanduSelect.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
+import { createStaffAccount, getStaffAccounts, updateStaffAccountStatus } from "../../services/userService.js";
+import { getRole } from "../../services/authService.js";
 
-import {
-  createStaffAccount,
-  getStaffAccounts,
-  updateStaffAccountStatus,
-} from "../../services/userService.js";
-
-import useAutoDismiss from "../../hooks/useAutoDismiss.js";
-
-const EMPTY_FORM = {
-  username: "",
-  password: "",
-  role: "BUILDING_ADMIN",
-  buildingId: "",
-};
-
-const ROLE_OPTIONS = [
-  {
-    value: "BUILDING_ADMIN",
-    label: "Building Admin",
-  },
-  {
-    value: "SUPERVISOR",
-    label: "Supervisor",
-  },
+const EMPTY = { username: "", password: "", role: "BUILDING_ADMIN", buildingId: "" };
+const ROLES = [
+  { value: "BUILDING_ADMIN", label: "Building Admin" },
+  { value: "SUPERVISOR", label: "Supervisor" },
 ];
-
-const INPUT_CLASS =
-  "w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm text-stone-900 outline-none transition-all duration-200 placeholder:text-stone-400 hover:border-stone-400 focus:border-stone-700 focus:bg-white focus:ring-4 focus:ring-stone-100";
-
-function errorMessage(error, fallback) {
-  const data = error.response?.data;
-
-  if (typeof data?.message === "string") {
-    return data.message;
-  }
-
+const fieldStyle = "w-full min-h-11 rounded-lg border border-[#D9E3EA] bg-white px-3.5 py-2.5 text-sm text-[#183B5B] outline-none transition focus:border-[#183B5B] focus:ring-2 focus:ring-[#183B5B]/15";
+const primaryStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#183B5B] px-4 text-sm font-semibold text-white transition hover:bg-[#102F4B] disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#D9E3EA] bg-white px-4 text-sm font-semibold text-[#183B5B] transition hover:bg-[#E8F0F7] disabled:opacity-50";
+const errorText = (error, fallback) => {
+  const data = error?.response?.data;
+  if (typeof data?.message === "string") return data.message;
   if (data && typeof data === "object") {
-    const firstValidationMessage =
-      Object.values(data)[0];
-
-    if (
-      typeof firstValidationMessage === "string"
-    ) {
-      return firstValidationMessage;
-    }
+    const messages = Object.values(data).filter((value) => typeof value === "string");
+    if (messages.length) return messages.join(" ");
   }
-
   return fallback;
-}
+};
+const roleName = (role) => role === "BUILDING_ADMIN" ? "Building Admin" : role === "SUPERVISOR" ? "Supervisor" : role || "—";
 
 export default function StaffAccounts() {
   const [accounts, setAccounts] = useState([]);
   const [buildings, setBuildings] = useState([]);
-  const [processingId, setProcessingId] =
-    useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [confirmAccount, setConfirmAccount] = useState(null);
+  const [processingId, setProcessingId] = useState(null);
+  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const isAdmin = getRole()?.replace(/^ROLE_/i, "").toUpperCase() === "ADMIN";
 
-  const [form, setForm] =
-    useState(EMPTY_FORM);
-
-  const [formOpen, setFormOpen] =
-    useState(false);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [saving, setSaving] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [message, setMessage] =
-    useState("");
-
-  const clearError = useCallback(() => {
-    setError("");
-  }, []);
-
-  const clearMessage = useCallback(() => {
-    setMessage("");
-  }, []);
-
-  useAutoDismiss(
-    error,
-    clearError,
-    4000
-  );
-
-  useAutoDismiss(
-    message,
-    clearMessage,
-    4000
-  );
-
-  const toggleStatus = async (account) => {
-    const newStatus = !account.active;
-
-    const action =
-      newStatus ? "activate" : "deactivate";
-
-    const confirmed = window.confirm(
-      `Are you sure you want to ${action} ${account.username}?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+  const loadData = useCallback(async (initial = false) => {
+    if (initial) setLoading(true); else setRefreshing(true);
     try {
-      setProcessingId(account.userId);
+      const [staff, properties] = await Promise.all([getStaffAccounts(), getAllBuildings()]);
+      setAccounts(Array.isArray(staff) ? staff : []);
+      setBuildings(Array.isArray(properties) ? properties : []);
       setError("");
-      setMessage("");
-
-      await updateStaffAccountStatus(
-        account.userId,
-        newStatus
-      );
-
-      setMessage(
-        `Staff account ${newStatus
-          ? "activated"
-          : "deactivated"
-        } successfully.`
-      );
-
-      await loadData();
-    } catch (requestError) {
-      setError(
-        errorMessage(
-          requestError,
-          "Unable to update staff account."
-        )
-      );
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const [
-        accountData,
-        buildingData,
-      ] = await Promise.all([
-        getStaffAccounts(),
-        getAllBuildings(),
-      ]);
-
-      setAccounts(
-        Array.isArray(accountData)
-          ? accountData
-          : []
-      );
-
-      setBuildings(
-        Array.isArray(buildingData)
-          ? buildingData
-          : []
-      );
-    } catch (requestError) {
-      setError(
-        errorMessage(
-          requestError,
-          "Unable to load staff accounts."
-        )
-      );
+      return true;
+    } catch (err) {
+      setError(errorText(err, "Unable to load staff accounts. Please retry."));
+      return false;
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    loadData();
   }, []);
 
-  const buildingOptions =
-    useMemo(
-      () =>
-        buildings.map(
-          (building) => ({
-            value:
-              building.buildingId,
-            label:
-              building.buildingName,
-          })
-        ),
-      [buildings]
-    );
+  useEffect(() => { loadData(true); }, [loadData]);
+
+  const buildingOptions = useMemo(() => buildings.map((building) => ({
+    value: building.buildingId,
+    label: building.buildingName,
+  })), [buildings]);
+
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return accounts.filter((account) => {
+      const statusMatch = status === "ALL" || (status === "ACTIVE" ? account.active : !account.active);
+      const textMatch = !term || [account.username, account.role, account.buildingName]
+        .some((value) => String(value ?? "").toLowerCase().includes(term));
+      return statusMatch && textMatch;
+    });
+  }, [accounts, search, status]);
 
   const openCreate = () => {
-    setForm({
-      ...EMPTY_FORM,
-      buildingId:
-        buildings[0]
-          ?.buildingId || "",
-    });
-
-    setError("");
-    setMessage("");
+    setForm({ ...EMPTY, buildingId: buildings[0]?.buildingId ?? "" });
+    setFormError("");
     setFormOpen(true);
-  };
-
-  const closeForm = () => {
-    if (saving) {
-      return;
-    }
-
-    setFormOpen(false);
-    setForm(EMPTY_FORM);
   };
 
   const submit = async (event) => {
     event.preventDefault();
-
-    setError("");
-    setMessage("");
-
+    if (saving) return;
     const payload = {
-      username:
-        form.username.trim(),
-      password:
-        form.password,
-      role:
-        form.role,
-      buildingId:
-        Number(form.buildingId),
+      username: form.username.trim(),
+      password: form.password,
+      role: form.role,
+      buildingId: Number(form.buildingId),
     };
-
-    if (
-      !payload.username ||
-      !payload.password ||
-      !payload.buildingId
-    ) {
-      setError(
-        "Please complete all staff account fields."
-      );
+    if (!payload.username || !payload.password || !payload.buildingId) {
+      setFormError("Please complete every required field.");
       return;
     }
-
+    setSaving(true);
+    setFormError("");
     try {
-      setSaving(true);
-
-      await createStaffAccount(
-        payload
-      );
-
-      setMessage(
-        "Staff account created successfully."
-      );
-
+      await createStaffAccount(payload);
       setFormOpen(false);
-      setForm(EMPTY_FORM);
-
+      setForm(EMPTY);
+      setSuccess("Staff account created successfully.");
       await loadData();
-    } catch (requestError) {
-      setError(
-        errorMessage(
-          requestError,
-          "Unable to create staff account."
-        )
-      );
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) {
+      setFormError(errorText(err, "Unable to create staff account."));
+    } finally { setSaving(false); }
+  };
+
+  const updateStatus = async () => {
+    if (!confirmAccount || processingId !== null) return;
+    const account = confirmAccount;
+    const next = !account.active;
+    setProcessingId(account.userId);
+    setConfirmError("");
+    try {
+      await updateStaffAccountStatus(account.userId, next);
+      setAccounts((list) => list.map((entry) => entry.userId === account.userId ? { ...entry, active: next } : entry));
+      setConfirmAccount(null);
+      setSuccess(`Account ${next ? "activated" : "deactivated"} successfully.`);
+    } catch (err) {
+      setConfirmError(errorText(err, "Unable to update account status."));
+    } finally { setProcessingId(null); }
   };
 
   return (
-    <main className="min-h-screen bg-[#F5F5F0] px-4 py-6 text-stone-900 sm:px-8">
+    <main className="min-h-screen bg-[var(--pg-bg)] px-4 py-5 text-[var(--pg-text)] sm:px-6 sm:py-7 xl:px-8">
       <div className="mx-auto max-w-7xl">
-
-        <AdminHeader
-          title="Staff Accounts"
-          subtitle="Manage Building Admin and Supervisor access."
-        />
-
-        <section className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
-              Management Accounts
-            </p>
-
-            <h2 className="mt-2 text-3xl font-black tracking-tighter">
-              {accounts.length} staff accounts
-            </h2>
-          </div>
-
-          <ActionButton
-            onClick={openCreate}
-            variant="primary"
-            disabled={
-              buildings.length === 0
-            }
-          >
-            Add Staff Account
-          </ActionButton>
-
-        </section>
-
-        {error && (
-          <p className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-            {error}
-          </p>
-        )}
-
-        {message && (
-          <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {message}
-          </p>
-        )}
-
-        {loading ? (
-          <section className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-
-            {[1, 2, 3].map(
-              (item) => (
-                <div
-                  key={item}
-                  className="h-52 animate-pulse rounded-[2rem] bg-white"
-                />
-              )
-            )}
-
-          </section>
-        ) : accounts.length === 0 ? (
-
-          <section className="mt-6 rounded-[2rem] border border-stone-200 bg-white p-10 text-center shadow-sm">
-
-            <p className="text-sm font-semibold text-stone-500">
-              No staff accounts have been created yet.
-            </p>
-
-          </section>
-
+        <AdminHeader title="Staff Accounts" subtitle="Manage building administrators and supervisors." />
+        {!isAdmin ? (
+          <div role="alert" className="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Only Super Admin can manage staff accounts.</div>
         ) : (
-
-          <section className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-
-            {accounts.map(
-              (account, index) => (
-
-                <motion.article
-                  key={account.userId}
-                  initial={{
-                    opacity: 0,
-                    y: 14,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                  whileHover={{
-                    y: -4,
-                  }}
-                  transition={{
-                    delay:
-                      index * 0.04,
-                  }}
-                  className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-lg"
-                >
-
-                  <div className="flex items-start justify-between gap-4">
-
-                    <span className="rounded-full border border-stone-200 bg-stone-100 px-3 py-1.5 text-[8px] font-bold uppercase tracking-widest text-stone-600">
-
-                      {account.role ===
-                        "BUILDING_ADMIN"
-                        ? "Building Admin"
-                        : "Supervisor"}
-
-                    </span>
-
-                    <span
-                      className={`rounded-full px-3 py-1.5 text-[8px] font-bold uppercase tracking-widest ${account.active
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-stone-100 text-stone-500"
-                        }`}
-                    >
-                      {account.active
-                        ? "Active"
-                        : "Inactive"}
-                    </span>
-
-                  </div>
-
-                  <h3 className="mt-6 text-2xl font-black tracking-tighter">
-
-                    {account.username}
-
-                  </h3>
-
-                  <p className="mt-3 text-sm text-stone-500">
-
-                    {account.buildingName}
-
-                  </p>
-
-                  <div className="mt-6 border-t border-stone-100 pt-5">
-                    <ActionButton
-                      onClick={() =>
-                        toggleStatus(account)
-                      }
-                      disabled={
-                        processingId === account.userId
-                      }
-                      variant={
-                        account.active
-                          ? "danger"
-                          : "primary"
-                      }
-                      className="w-full"
-                    >
-                      {processingId === account.userId
-                        ? "Updating..."
-                        : account.active
-                          ? "Deactivate"
-                          : "Activate"}
-                    </ActionButton>
-                  </div>
-
-                  <p className="mt-1 text-xs text-stone-400">
-
-                    Building ID #{account.buildingId}
-
-                  </p>
-
-                </motion.article>
-              )
-            )}
-
-          </section>
-        )}
-
-      </div>
-
-      {formOpen && (
-
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm"
-          onClick={closeForm}
-        >
-
-          <motion.section
-            initial={{
-              opacity: 0,
-              y: 18,
-              scale: 0.97,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: 1,
-            }}
-            className="w-full max-w-xl rounded-[2rem] bg-white p-7 shadow-2xl"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
-          >
-
-            <div className="flex items-start justify-between gap-4">
-
+          <>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
-                  User Management
-                </p>
-
-                <h2 className="mt-2 text-3xl font-black tracking-tighter">
-                  Add staff account
-                </h2>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#B33A3A]">Access management</p>
+                <h2 className="mt-1 text-xl font-bold text-[#183B5B]">Staff directory <span className="text-base font-medium text-[#64748B]">({accounts.length})</span></h2>
               </div>
-
-              <ActionButton
-                onClick={closeForm}
-                variant="soft"
-              >
-                Close
-              </ActionButton>
-
+              <button type="button" onClick={openCreate} disabled={loading || !buildings.length} className={primaryStyle}><Plus size={17} /> Add staff account</button>
             </div>
 
-            <form
-              onSubmit={submit}
-              className="mt-7 space-y-5"
-            >
+            {error && <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><span className="flex items-center gap-2"><CircleAlert size={17}/>{error}</span><button type="button" onClick={() => loadData()} className="font-bold underline">Retry</button></div>}
+            {success && <div role="status" className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span className="flex items-center gap-2"><Check size={16}/>{success}</span><button type="button" onClick={() => setSuccess("")} aria-label="Dismiss success message"><X size={17}/></button></div>}
 
-              <input
-                value={form.username}
-                onChange={(event) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      username:
-                        event.target.value,
-                    })
-                  )
-                }
-                placeholder="Username"
-                autoComplete="off"
-                className={INPUT_CLASS}
-              />
-
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      password:
-                        event.target.value,
-                    })
-                  )
-                }
-                placeholder="Password"
-                autoComplete="new-password"
-                className={INPUT_CLASS}
-              />
-
-              <PremiumSelect
-                label="Role"
-                value={form.role}
-                options={ROLE_OPTIONS}
-                onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      role: value,
-                    })
-                  )
-                }
-              />
-
-              <PremiumSelect
-                label="Building"
-                value={
-                  form.buildingId
-                }
-                options={
-                  buildingOptions
-                }
-                onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      buildingId:
-                        value,
-                    })
-                  )
-                }
-                placeholder="Select building"
-              />
-
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-
-                <p className="text-xs leading-relaxed text-stone-500">
-
-                  Building Admin can manage the assigned building.
-                  Supervisor receives read-only access.
-
-                </p>
-
+            <section className="mt-4 overflow-visible rounded-xl border border-[#D9E3EA] bg-white shadow-[0_3px_12px_rgba(24,59,91,0.035)]">
+              <div className="flex flex-col gap-3 border-b border-[#E4EBF0] p-4 md:flex-row md:items-end md:justify-between">
+                <label className="relative block w-full md:max-w-sm">
+                  <span className="mb-1.5 block text-xs font-semibold text-[#64748B]">Search staff</span>
+                  <Search size={17} className="pointer-events-none absolute bottom-3 left-3 text-[#7A93A8]"/>
+                  <input className={`${fieldStyle} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Username or assigned building" />
+                </label>
+                <div role="group" aria-label="Filter by account status" className="flex flex-wrap gap-2">
+                  {[["ALL", "All"], ["ACTIVE", "Active"], ["INACTIVE", "Inactive"]].map(([key, label]) => <button key={key} type="button" onClick={() => setStatus(key)} aria-pressed={status === key} className={`min-h-10 rounded-lg border px-4 text-sm font-semibold ${status === key ? "border-[#183B5B] bg-[#183B5B] text-white" : "border-[#D9E3EA] bg-white text-[#183B5B] hover:bg-[#E8F0F7]"}`}>{label}</button>)}
+                </div>
               </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-
-                <ActionButton
-                  onClick={closeForm}
-                >
-                  Cancel
-                </ActionButton>
-
-                <ActionButton
-                  type="submit"
-                  variant="primary"
-                  disabled={saving}
-                >
-                  {saving
-                    ? "Creating..."
-                    : "Create Account"}
-                </ActionButton>
-
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+                  <thead className="bg-[#E8F0F7] text-[11px] font-bold uppercase tracking-wider text-[#183B5B]"><tr><th className="px-4 py-3">Username</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Assigned building</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead>
+                  <tbody className="divide-y divide-[#E4EBF0]">
+                    {loading ? <tr><td colSpan={5} className="px-4 py-10 text-center text-[#64748B]">Loading staff accounts…</td></tr> : visible.length === 0 ? <tr><td colSpan={5} className="px-4 py-10 text-center text-[#64748B]">{accounts.length === 0 ? "No staff accounts yet." : "No accounts match your filters."}</td></tr> : visible.map((account) => <tr key={account.userId} className="hover:bg-[#F7FAFC]"><td className="px-4 py-3 font-semibold text-[#183B5B]"><span className="inline-flex items-center gap-2"><UserRound size={16} className="text-[#63839A]"/>{account.username}</span></td><td className="px-4 py-3">{roleName(account.role)}</td><td className="px-4 py-3">{account.buildingName || `Building #${account.buildingId}`}</td><td className="px-4 py-3"><span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{account.active ? "Active" : "Inactive"}</span></td><td className="px-4 py-3 text-right"><button type="button" onClick={() => { setConfirmError(""); setConfirmAccount(account); }} className="text-xs font-bold text-[#183B5B] underline-offset-4 hover:underline">{account.active ? "Deactivate" : "Activate"} →</button></td></tr>)}
+                  </tbody>
+                </table>
               </div>
+              {refreshing && <p className="border-t border-[#E4EBF0] px-4 py-2 text-xs text-[#64748B]">Refreshing records…</p>}
+            </section>
+          </>
+        )}
+      </div>
 
-            </form>
+      {formOpen && isAdmin && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#102338]/60 p-3 sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setFormOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="staff-form-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+          <div className="flex items-start justify-between gap-4 border-b border-[#E4EBF0] px-5 py-4 sm:px-6"><div><p className="text-[11px] font-bold uppercase tracking-wider text-[#B33A3A]">Access management</p><h2 id="staff-form-title" className="mt-1 text-xl font-bold text-[#183B5B]">Add staff account</h2></div><button type="button" onClick={() => setFormOpen(false)} disabled={saving} aria-label="Close staff form" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#D9E3EA] text-[#183B5B] hover:bg-[#E8F0F7] disabled:opacity-50"><X size={19}/></button></div>
+          <form onSubmit={submit} className="space-y-4 p-5 sm:p-6">
+            {formError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{formError}</p>}
+            <div><label htmlFor="staff-username" className="mb-1.5 block text-sm font-semibold text-[#183B5B]">Username *</label><input id="staff-username" required autoComplete="off" className={fieldStyle} value={form.username} onChange={(e) => setForm((old) => ({ ...old, username: e.target.value }))} /></div>
+            <div><label htmlFor="staff-password" className="mb-1.5 block text-sm font-semibold text-[#183B5B]">Password *</label><input id="staff-password" type="password" required autoComplete="new-password" className={fieldStyle} value={form.password} onChange={(e) => setForm((old) => ({ ...old, password: e.target.value }))} /></div>
+            <NanduSelect label="Role *" value={form.role} options={ROLES} onChange={(value) => setForm((old) => ({ ...old, role: value }))} />
+            <NanduSelect label="Assigned building *" value={form.buildingId} options={buildingOptions} placeholder="Select building" onChange={(value) => setForm((old) => ({ ...old, buildingId: value }))} />
+            <div className="flex items-start gap-2 rounded-lg bg-[#E8F0F7] p-3 text-xs leading-relaxed text-[#33536C]"><ShieldCheck size={17} className="mt-0.5 shrink-0"/>Building Admin can manage the assigned property. Supervisor has read-only access to its management data.</div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-[#E4EBF0] pt-4"><button type="button" onClick={() => setFormOpen(false)} disabled={saving} className={secondaryStyle}>Cancel</button><button type="submit" disabled={saving} className={primaryStyle}>{saving ? "Creating…" : <><Plus size={16}/> Create account</>}</button></div>
+          </form>
+        </section>
+      </div>}
 
-          </motion.section>
-
-        </div>
-      )}
-
+      {confirmAccount && isAdmin && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#102338]/60 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && processingId === null) setConfirmAccount(null); }}><section role="alertdialog" aria-modal="true" aria-labelledby="staff-confirm-title" className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-2"><h2 id="staff-confirm-title" className="text-xl font-bold text-[#183B5B]">{confirmAccount.active ? "Deactivate" : "Activate"} account?</h2><button type="button" aria-label="Close confirmation" disabled={processingId !== null} onClick={() => setConfirmAccount(null)} className="rounded-lg p-2 text-[#183B5B] hover:bg-[#E8F0F7]"><X size={19}/></button></div><p className="mt-3 text-sm leading-relaxed text-[#64748B]"><strong className="text-[#183B5B]">{confirmAccount.username}</strong> · {roleName(confirmAccount.role)} · {confirmAccount.buildingName || `Building #${confirmAccount.buildingId}`}</p><p className="mt-2 text-sm text-[#64748B]">{confirmAccount.active ? "This user will no longer be able to access their account." : "This user will regain access under their existing role and building assignment."}</p>{confirmError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{confirmError}</p>}<div className="mt-6 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setConfirmAccount(null)} disabled={processingId !== null} className={secondaryStyle}>Cancel</button><button type="button" onClick={updateStatus} disabled={processingId !== null} className={confirmAccount.active ? "inline-flex min-h-10 items-center rounded-lg bg-[#B33A3A] px-4 text-sm font-semibold text-white hover:bg-[#922D2D] disabled:opacity-50" : primaryStyle}>{processingId !== null ? "Updating…" : `Confirm ${confirmAccount.active ? "deactivation" : "activation"}`}</button></div></section></div>}
     </main>
   );
 }

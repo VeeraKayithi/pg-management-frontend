@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Bell, RefreshCw, ArrowLeft, ArrowUpRight, Archive, CircleAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -246,229 +247,19 @@ export default function Notifications() {
   };
 
   return (
-    <motion.main
-      variants={PAGE_VARIANTS}
-      initial="hidden"
-      animate="visible"
-      className="min-h-screen bg-[#F5F5F0] px-4 py-6 text-stone-900 sm:px-8 sm:py-8"
-    >
-      <div className="mx-auto max-w-5xl">
-        <header className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
-                Notification Center
-              </p>
-              <h1 className="mt-1 text-3xl font-black tracking-tighter">
-                Your notifications
-              </h1>
-              <p className="mt-1 text-sm text-stone-500">
-                Warnings request attention. Urgent notices require prompt review.
-              </p>
-            </div>
-
-            <motion.button
-              type="button"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={returnToDashboard}
-              className="rounded-full border border-stone-300 px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest hover:border-stone-900"
-            >
-              Dashboard
-            </motion.button>
+    <motion.main variants={PAGE_VARIANTS} initial="hidden" animate="visible" className="min-h-screen bg-[var(--pg-bg)] px-4 py-5 text-[var(--pg-text)] sm:px-6 sm:py-7 xl:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-[#B33A3A]">Management workspace</p><h1 className="mt-1 text-2xl font-bold text-[var(--pg-heading)]">Notifications</h1><p className="mt-1 text-sm text-[var(--pg-text-muted)]">Messages and updates for your account.</p></div>
+          <button type="button" onClick={returnToDashboard} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--pg-border)] bg-[var(--pg-surface)] px-4 text-sm font-semibold text-[var(--pg-heading)]"><ArrowLeft size={16}/>Overview</button>
+        </div>
+        <section className="mt-6 overflow-hidden rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--pg-border)] px-5 py-4">
+            <div className="flex gap-2" role="group" aria-label="Notification filters">{TABS.map((tab)=><button type="button" key={tab.value} aria-pressed={activeTab===tab.value} onClick={()=>setActiveTab(tab.value)} className={`min-h-10 rounded-lg px-4 text-sm font-semibold ${activeTab===tab.value ? "bg-[#183B5B] text-white" : "bg-[var(--pg-bg)] text-[var(--pg-heading)] hover:bg-[#E8F0F7]"}`}>{tab.label}</button>)}</div>
+            <button type="button" onClick={loadNotifications} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--pg-border)] px-4 text-sm font-semibold text-[var(--pg-heading)] disabled:opacity-50"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/>Refresh</button>
           </div>
-        </header>
-
-        <section className="mt-6 flex flex-col gap-4 rounded-[2rem] border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <nav className="flex gap-1 overflow-x-auto rounded-full bg-stone-100 p-1">
-            {TABS.map((tab) => (
-              <motion.button
-                key={tab.value}
-                type="button"
-                whileTap={{ scale: 0.96 }}
-                onClick={() => setActiveTab(tab.value)}
-                className={`relative shrink-0 rounded-full px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest ${activeTab === tab.value
-                  ? "text-white"
-                  : "text-stone-500 hover:bg-white hover:text-stone-900"
-                  }`}
-              >
-                {activeTab === tab.value && (
-                  <motion.span
-                    layoutId="notification-active-tab"
-                    className="absolute inset-0 rounded-full bg-stone-900"
-                  />
-                )}
-                <span className="relative z-10">{tab.label}</span>
-              </motion.button>
-            ))}
-          </nav>
-
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.97 }}
-            onClick={loadNotifications}
-            disabled={loading}
-            className="rounded-full bg-stone-900 px-5 py-2.5 text-[8px] font-bold uppercase tracking-widest text-white disabled:opacity-60"
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </motion.button>
-        </section>
-
-        {error && (
-          <div
-            role="alert"
-            className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
-          >
-            {error}
-          </div>
-        )}
-
-        <section className="mt-6">
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="h-44 animate-pulse rounded-[2rem] bg-white"
-                />
-              ))}
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center shadow-sm">
-              <h2 className="text-2xl font-black tracking-tighter">
-                No {activeTab} notifications
-              </h2>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <AnimatePresence>
-                {notifications.map((notification, index) => {
-                  const style = getSeverityPresentation(notification.severity);
-                  const needsAttention = ["WARNING", "URGENT", "ERROR"].includes(
-                    notification.severity?.toUpperCase()
-                  );
-
-                  return (
-                    <motion.article
-                      key={notification.notificationId}
-                      layout
-                      initial={{ opacity: 0, y: 12, scale: 0.99 }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                        scale:
-                          notification.severity?.toUpperCase() === "WARNING"
-                            ? [0.99, 1.01, 1]
-                            : 1,
-                      }}
-                      exit={{
-                        opacity: 0,
-                        x: 36,
-                        scale: 0.98,
-                        height: 0,
-                        marginBottom: 0,
-                      }}
-                      transition={{
-                        delay: index * 0.025,
-                        duration: 0.25,
-                        layout: {
-                          type: "spring",
-                          stiffness: 380,
-                          damping: 34,
-                        },
-                      }}
-                      className={`relative overflow-hidden rounded-[2rem] border p-6 shadow-sm transition-shadow hover:shadow-md ${style.card}`}
-                    >
-                      <div
-                        className={`absolute inset-y-0 left-0 w-1.5 ${style.accent}`}
-                      />
-
-                      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 flex-1 pl-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={`rounded-full border px-3 py-1 text-[7px] font-bold uppercase tracking-widest ${style.badge}`}
-                            >
-                              {style.label}
-                            </span>
-                            <span className="text-[8px] font-bold uppercase tracking-widest text-stone-400">
-                              {notification.sourceModule}
-                            </span>
-                          </div>
-
-                          <div className="mt-4 flex items-start gap-3">
-                            <span
-                              aria-hidden="true"
-                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${style.iconBox}`}
-                            >
-                              {style.icon}
-                            </span>
-                            <div>
-                              <h2 className="text-2xl font-black tracking-tighter">
-                                {notification.title}
-                              </h2>
-                              <p className="mt-2 text-sm leading-relaxed text-stone-600">
-                                {notification.message}
-                              </p>
-                            </div>
-                          </div>
-
-                          {needsAttention && (
-                            <div
-                              className={`mt-5 rounded-2xl border p-4 ${style.notice}`}
-                            >
-                              <p className="text-[9px] font-black uppercase tracking-widest">
-                                {style.noticeTitle}
-                              </p>
-                              <p className="mt-1 text-xs leading-relaxed">
-                                {style.noticeText}
-                              </p>
-                            </div>
-                          )}
-
-                          <p className="mt-4 text-xs text-stone-400">
-                            {formatDate(notification.createdAt)}
-                          </p>
-                        </div>
-
-                        <div className="flex shrink-0 flex-wrap gap-2">
-                          {!notification.dismissed && (
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.96 }}
-                              disabled={
-                                processingId === notification.notificationId
-                              }
-                              onClick={() =>
-                                dismiss(notification.notificationId)
-                              }
-                              className="rounded-full border border-stone-900 px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest hover:bg-stone-900 hover:text-white disabled:opacity-50"
-                            >
-                              Dismiss
-                            </motion.button>
-                          )}
-
-                          {notification.deepLink && (
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.96 }}
-                              disabled={
-                                processingId === notification.notificationId
-                              }
-                              onClick={() => openNotification(notification)}
-                              className="rounded-full bg-stone-900 px-4 py-2.5 text-[8px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
-                            >
-                              View
-                            </motion.button>
-                          )}
-                        </div>
-                      </div>
-                    </motion.article>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          )}
+          {error && <div role="alert" className="m-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><CircleAlert size={17}/>{error}</div>}
+          {loading ? <div className="p-6 text-sm text-[var(--pg-text-muted)]">Loading notifications…</div> : notifications.length === 0 ? <div className="flex flex-col items-center gap-2 px-6 py-14 text-center text-[var(--pg-text-muted)]"><Bell size={27}/><p className="font-semibold">No {activeTab === "dismissed" ? "dismissed" : "current"} notifications</p></div> : <div className="divide-y divide-[var(--pg-border)]"><AnimatePresence>{notifications.map((n)=>{const style=getSeverityPresentation(n.severity);return <motion.article layout initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={n.notificationId} className="flex flex-col gap-4 p-5 hover:bg-[var(--pg-bg)] sm:flex-row sm:items-start sm:justify-between"><div className="flex min-w-0 gap-3"><span className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${style.iconBox}`}><Bell size={18}/></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${style.badge}`}>{style.label}</span>{n.sourceModule && <span className="text-xs text-[var(--pg-text-muted)]">{n.sourceModule}</span>}{!n.read && <span className="text-xs font-bold text-[#183B5B]">Unread</span>}</div><h2 className="mt-2 text-sm font-bold text-[var(--pg-heading)]">{n.title}</h2><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--pg-text)]">{n.message}</p><p className="mt-2 text-xs text-[var(--pg-text-muted)]">{formatDate(n.createdAt)}</p></div></div><div className="flex shrink-0 items-center gap-2 pl-12 sm:pl-0">{n.deepLink && <button type="button" disabled={processingId===n.notificationId} onClick={()=>openNotification(n)} className="inline-flex items-center gap-1 rounded-lg bg-[#183B5B] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Open <ArrowUpRight size={14}/></button>}{!n.dismissed && <button type="button" disabled={processingId===n.notificationId} onClick={()=>dismiss(n.notificationId)} className="inline-flex items-center gap-1 rounded-lg border border-[var(--pg-border)] px-3 py-2 text-xs font-semibold text-[var(--pg-heading)] disabled:opacity-50"><Archive size={14}/>Dismiss</button>}</div></motion.article>})}</AnimatePresence></div>}
         </section>
       </div>
     </motion.main>
