@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { useLocation, useOutlet } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import AdminSidebar from "../components/admin/AdminSidebar.jsx";
 import { AdminUtilityBar } from "../components/admin/AdminHeader.jsx";
 import "../styles/admin-workspace.css";
@@ -8,6 +9,8 @@ export default function AdminLayout() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const location = useLocation();
+  const outlet = useOutlet();
+  const reduceMotion = useReducedMotion();
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
   useEffect(() => {
@@ -46,10 +49,25 @@ export default function AdminLayout() {
     <div className="nandu-admin lg:flex">
       <a className="nandu-skip-link" href="#admin-workspace-content">Skip to content</a>
       <AdminSidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="nandu-workspace" inert={isSidebarOpen ? true : undefined}>
+      <div
+        className="nandu-workspace lg:ml-72"
+        inert={isSidebarOpen ? true : undefined}
+      >
         <AdminUtilityBar onOpenNavigation={() => setSidebarOpen(true)}
           navigationOpen={isSidebarOpen} menuButtonRef={menuButtonRef} />
-        <div id="admin-workspace-content" tabIndex={-1}><Outlet /></div>
+        <div id="admin-workspace-content" tabIndex={-1}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
+              transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
+            >
+              {outlet}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

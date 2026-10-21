@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import NanduModal from "./NanduModal.jsx";
 import { ArrowRight, Clock3, History, X } from "lucide-react";
 import { getTenantStayHistory } from "../../services/tenantService.js";
 
@@ -13,44 +14,42 @@ export default function TenantStayHistoryModal({ tenant, onClose }) {
   const [stays, setStays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const closeRef = useRef(null);
+  // Keep the selected resident visible while NanduModal finishes its exit.
+  const lastTenantRef = useRef(null);
+  if (tenant) lastTenantRef.current = tenant;
+  const displayedTenant = lastTenantRef.current;
 
   useEffect(() => {
+    if (!tenant?.tenantId) return;
     let active = true;
+    setLoading(true);
+    setError("");
+    setStays([]);
     getTenantStayHistory(tenant.tenantId)
       .then(data => { if (active) setStays(Array.isArray(data) ? data : []); })
       .catch(e => { if (active) setError(e.response?.data?.message || "Unable to load stay history."); })
       .finally(() => { if (active) setLoading(false); });
-    closeRef.current?.focus();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = event => {
-      if (event.key === "Escape") onClose();
-      if (event.key === "Tab") {
-        const elements = document.querySelectorAll('[data-stay-dialog] button:not(:disabled)');
-        if (elements.length === 1) { event.preventDefault(); closeRef.current?.focus(); }
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      active = false;
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [tenant.tenantId, onClose]);
+    return () => { active = false; };
+  }, [tenant?.tenantId]);
+
+  // Removed erroneous return statement and cleanup code that doesn't belong here.
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#0E253C]/60 p-3 sm:p-6"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <section data-stay-dialog role="dialog" aria-modal="true" aria-labelledby="stay-history-title"
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#D9E3EA] bg-white shadow-2xl">
+    <NanduModal
+      open={Boolean(tenant)}
+      onClose={onClose}
+      titleId="stay-history-title"
+      size="lg"
+      zIndex={150}
+      panelClassName="flex max-h-[90vh] flex-col overflow-hidden border-[#D9E3EA]"
+    >
         <header className="flex items-start justify-between gap-4 border-b border-[#D9E3EA] p-5 sm:px-6">
           <div>
             <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#52718D]"><History size={15}/> Resident timeline</p>
-            <h2 id="stay-history-title" className="mt-1 text-xl font-bold text-[#183B5B]">{tenant.name} — Stay history</h2>
+            <h2 id="stay-history-title" className="mt-1 text-xl font-bold text-[#183B5B]">{displayedTenant?.name} — Stay history</h2>
             <p className="mt-1 text-xs text-[#64748B]">Historical admissions and recorded room transfers</p>
           </div>
-          <button ref={closeRef} onClick={onClose} type="button" aria-label="Close stay history"
+          <button onClick={onClose} type="button" aria-label="Close stay history"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#D9E3EA] text-[#183B5B] hover:bg-[#E8F0F7]"><X size={19}/></button>
         </header>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#F6F9FC] p-5 sm:p-6">
@@ -83,7 +82,6 @@ export default function TenantStayHistoryModal({ tenant, onClose }) {
         <footer className="flex justify-end border-t border-[#D9E3EA] bg-white px-5 py-4">
           <button type="button" onClick={onClose} className="min-h-10 rounded-lg bg-[#183B5B] px-5 text-sm font-semibold text-white hover:bg-[#102F4B]">Close</button>
         </footer>
-      </section>
-    </div>
+    </NanduModal>
   );
 }

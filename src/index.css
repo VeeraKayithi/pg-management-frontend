@@ -100,3 +100,51 @@ button:disabled {
     border-radius: 10px;
   }
 }
+/* NANDU — Prevent page shifting when modals open or close */
+html {
+  scrollbar-gutter: stable;
+}
+/* =========================================
+   NANDU — Global Button Interactions
+   ========================================= */
+
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled) {
+    transition:
+      scale 160ms ease,
+      translate 160ms ease,
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      opacity 160ms ease;
+  }
+
+  /* Subtle lift on hover */
+  @media (hover: hover) and (pointer: fine) {
+    button:not(:disabled):hover {
+      translate: 0 -1px;
+    }
+  }
+
+  /* Gentle press feedback */
+  button:not(:disabled):active {
+    scale: 0.98;
+    translate: 0 0;
+  }
+}
+
+/* Respect accessibility preferences */
+@media (prefers-reduced-motion: reduce) {
+  button {
+    scale: 1 !important;
+    translate: none !important;
+  }
+}
+
+/* NANDU — Remove duplicate input focus outline */
+.nandu-search-input:focus,
+.nandu-search-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}

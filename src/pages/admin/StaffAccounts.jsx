@@ -1,6 +1,11 @@
+import { AnimatePresence } from "framer-motion";
+import { NanduTableRow } from "../../components/admin/NanduAnimatedRow.jsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, CircleAlert, Plus, Search, ShieldCheck, UserRound, X } from "lucide-react";
+import { Plus, Search, ShieldCheck, UserRound, X } from "lucide-react";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
+import NanduAlert from "../../components/admin/NanduAlert.jsx";
+import useAutoDismiss from "../../hooks/useAutoDismiss.js";
+import NanduModal from "../../components/admin/NanduModal.jsx";
 import NanduSelect from "../../components/admin/NanduSelect.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
 import { createStaffAccount, getStaffAccounts, updateStaffAccountStatus } from "../../services/userService.js";
@@ -41,6 +46,8 @@ export default function StaffAccounts() {
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
+  useAutoDismiss(error, useCallback(() => setError(""), []), 4000);
+  useAutoDismiss(success, useCallback(() => setSuccess(""), []), 4000);
   const isAdmin = getRole()?.replace(/^ROLE_/i, "").toUpperCase() === "ADMIN";
 
   const loadData = useCallback(async (initial = false) => {
@@ -141,8 +148,8 @@ export default function StaffAccounts() {
               <button type="button" onClick={openCreate} disabled={loading || !buildings.length} className={primaryStyle}><Plus size={17} /> Add staff account</button>
             </div>
 
-            {error && <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><span className="flex items-center gap-2"><CircleAlert size={17}/>{error}</span><button type="button" onClick={() => loadData()} className="font-bold underline">Retry</button></div>}
-            {success && <div role="status" className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span className="flex items-center gap-2"><Check size={16}/>{success}</span><button type="button" onClick={() => setSuccess("")} aria-label="Dismiss success message"><X size={17}/></button></div>}
+            <NanduAlert type="error" message={error} onDismiss={() => setError("")} actionLabel="Retry" onAction={() => loadData()} className="mt-4" />
+            <NanduAlert type="success" message={success} onDismiss={() => setSuccess("")} className="mt-4" />
 
             <section className="mt-4 overflow-visible rounded-xl border border-[#D9E3EA] bg-white shadow-[0_3px_12px_rgba(24,59,91,0.035)]">
               <div className="flex flex-col gap-3 border-b border-[#E4EBF0] p-4 md:flex-row md:items-end md:justify-between">
@@ -159,8 +166,11 @@ export default function StaffAccounts() {
                 <table className="w-full min-w-[700px] border-collapse text-left text-sm">
                   <thead className="bg-[#E8F0F7] text-[11px] font-bold uppercase tracking-wider text-[#183B5B]"><tr><th className="px-4 py-3">Username</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Assigned building</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead>
                   <tbody className="divide-y divide-[#E4EBF0]">
-                    {loading ? <tr><td colSpan={5} className="px-4 py-10 text-center text-[#64748B]">Loading staff accounts…</td></tr> : visible.length === 0 ? <tr><td colSpan={5} className="px-4 py-10 text-center text-[#64748B]">{accounts.length === 0 ? "No staff accounts yet." : "No accounts match your filters."}</td></tr> : visible.map((account) => <tr key={account.userId} className="hover:bg-[#F7FAFC]"><td className="px-4 py-3 font-semibold text-[#183B5B]"><span className="inline-flex items-center gap-2"><UserRound size={16} className="text-[#63839A]"/>{account.username}</span></td><td className="px-4 py-3">{roleName(account.role)}</td><td className="px-4 py-3">{account.buildingName || `Building #${account.buildingId}`}</td><td className="px-4 py-3"><span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{account.active ? "Active" : "Inactive"}</span></td><td className="px-4 py-3 text-right"><button type="button" onClick={() => { setConfirmError(""); setConfirmAccount(account); }} className="text-xs font-bold text-[#183B5B] underline-offset-4 hover:underline">{account.active ? "Deactivate" : "Activate"} →</button></td></tr>)}
-                  </tbody>
+                <AnimatePresence initial={false}>
+
+                    {loading ? <tr><td colSpan={5} className="px-4 py-10 text-center text-[#64748B]">Loading staff accounts…</td></tr> : visible.length === 0 ? <tr><td colSpan={5} className="px-4 py-10 text-center text-[#64748B]">{accounts.length === 0 ? "No staff accounts yet." : "No accounts match your filters."}</td></tr> : visible.map((account) => <NanduTableRow key={account.userId} className="hover:bg-[#F7FAFC]"><td className="px-4 py-3 font-semibold text-[#183B5B]"><span className="inline-flex items-center gap-2"><UserRound size={16} className="text-[#63839A]"/>{account.username}</span></td><td className="px-4 py-3">{roleName(account.role)}</td><td className="px-4 py-3">{account.buildingName || `Building #${account.buildingId}`}</td><td className="px-4 py-3"><span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{account.active ? "Active" : "Inactive"}</span></td><td className="px-4 py-3 text-right"><button type="button" onClick={() => { setConfirmError(""); setConfirmAccount(account); }} className="text-xs font-bold text-[#183B5B] underline-offset-4 hover:underline">{account.active ? "Deactivate" : "Activate"} →</button></td></NanduTableRow>)}
+                                  </AnimatePresence>
+              </tbody>
                 </table>
               </div>
               {refreshing && <p className="border-t border-[#E4EBF0] px-4 py-2 text-xs text-[#64748B]">Refreshing records…</p>}
@@ -169,8 +179,8 @@ export default function StaffAccounts() {
         )}
       </div>
 
-      {formOpen && isAdmin && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#102338]/60 p-3 sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setFormOpen(false); }}>
-        <section role="dialog" aria-modal="true" aria-labelledby="staff-form-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+      <NanduModal open={formOpen && isAdmin} onClose={() => setFormOpen(false)} disableClose={saving}
+        titleId="staff-form-title" size="md">
           <div className="flex items-start justify-between gap-4 border-b border-[#E4EBF0] px-5 py-4 sm:px-6"><div><p className="text-[11px] font-bold uppercase tracking-wider text-[#B33A3A]">Access management</p><h2 id="staff-form-title" className="mt-1 text-xl font-bold text-[#183B5B]">Add staff account</h2></div><button type="button" onClick={() => setFormOpen(false)} disabled={saving} aria-label="Close staff form" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#D9E3EA] text-[#183B5B] hover:bg-[#E8F0F7] disabled:opacity-50"><X size={19}/></button></div>
           <form onSubmit={submit} className="space-y-4 p-5 sm:p-6">
             {formError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{formError}</p>}
@@ -181,10 +191,11 @@ export default function StaffAccounts() {
             <div className="flex items-start gap-2 rounded-lg bg-[#E8F0F7] p-3 text-xs leading-relaxed text-[#33536C]"><ShieldCheck size={17} className="mt-0.5 shrink-0"/>Building Admin can manage the assigned property. Supervisor has read-only access to its management data.</div>
             <div className="flex flex-wrap justify-end gap-2 border-t border-[#E4EBF0] pt-4"><button type="button" onClick={() => setFormOpen(false)} disabled={saving} className={secondaryStyle}>Cancel</button><button type="submit" disabled={saving} className={primaryStyle}>{saving ? "Creating…" : <><Plus size={16}/> Create account</>}</button></div>
           </form>
-        </section>
-      </div>}
+      </NanduModal>
 
-      {confirmAccount && isAdmin && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#102338]/60 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && processingId === null) setConfirmAccount(null); }}><section role="alertdialog" aria-modal="true" aria-labelledby="staff-confirm-title" className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-2"><h2 id="staff-confirm-title" className="text-xl font-bold text-[#183B5B]">{confirmAccount.active ? "Deactivate" : "Activate"} account?</h2><button type="button" aria-label="Close confirmation" disabled={processingId !== null} onClick={() => setConfirmAccount(null)} className="rounded-lg p-2 text-[#183B5B] hover:bg-[#E8F0F7]"><X size={19}/></button></div><p className="mt-3 text-sm leading-relaxed text-[#64748B]"><strong className="text-[#183B5B]">{confirmAccount.username}</strong> · {roleName(confirmAccount.role)} · {confirmAccount.buildingName || `Building #${confirmAccount.buildingId}`}</p><p className="mt-2 text-sm text-[#64748B]">{confirmAccount.active ? "This user will no longer be able to access their account." : "This user will regain access under their existing role and building assignment."}</p>{confirmError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{confirmError}</p>}<div className="mt-6 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setConfirmAccount(null)} disabled={processingId !== null} className={secondaryStyle}>Cancel</button><button type="button" onClick={updateStatus} disabled={processingId !== null} className={confirmAccount.active ? "inline-flex min-h-10 items-center rounded-lg bg-[#B33A3A] px-4 text-sm font-semibold text-white hover:bg-[#922D2D] disabled:opacity-50" : primaryStyle}>{processingId !== null ? "Updating…" : `Confirm ${confirmAccount.active ? "deactivation" : "activation"}`}</button></div></section></div>}
+      <NanduModal open={Boolean(confirmAccount) && isAdmin} onClose={() => setConfirmAccount(null)}
+        disableClose={processingId !== null} titleId="staff-confirm-title" role="alertdialog"
+        size="sm" zIndex={110} panelClassName="p-5 sm:p-6"><div className="flex items-start justify-between gap-2"><h2 id="staff-confirm-title" className="text-xl font-bold text-[#183B5B]">{confirmAccount?.active ? "Deactivate" : "Activate"} account?</h2><button type="button" aria-label="Close confirmation" disabled={processingId !== null} onClick={() => setConfirmAccount(null)} className="rounded-lg p-2 text-[#183B5B] hover:bg-[#E8F0F7]"><X size={19}/></button></div><p className="mt-3 text-sm leading-relaxed text-[#64748B]"><strong className="text-[#183B5B]">{confirmAccount?.username}</strong> · {roleName(confirmAccount?.role)} · {confirmAccount?.buildingName || `Building #${confirmAccount?.buildingId}`}</p><p className="mt-2 text-sm text-[#64748B]">{confirmAccount?.active ? "This user will no longer be able to access their account." : "This user will regain access under their existing role and building assignment."}</p>{confirmError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{confirmError}</p>}<div className="mt-6 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setConfirmAccount(null)} disabled={processingId !== null} className={secondaryStyle}>Cancel</button><button type="button" onClick={updateStatus} disabled={processingId !== null} className={confirmAccount?.active ? "inline-flex min-h-10 items-center rounded-lg bg-[#B33A3A] px-4 text-sm font-semibold text-white hover:bg-[#922D2D] disabled:opacity-50" : primaryStyle}>{processingId !== null ? "Updating…" : `Confirm ${confirmAccount?.active ? "deactivation" : "activation"}`}</button></div></NanduModal>
     </main>
   );
 }

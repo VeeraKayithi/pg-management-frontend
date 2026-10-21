@@ -20,10 +20,12 @@ import Rooms from "./pages/admin/Rooms.jsx";
 import Tenants from "./pages/admin/Tenants.jsx";
 import Communications from "./pages/admin/Communications.jsx";
 import StaffAccounts from "./pages/admin/StaffAccounts.jsx";
+import useNanduModalFocus from "./hooks/useNanduModalFocus.js";
 
 import TenantDashboard from "./pages/tenant/Dashboard.jsx";
 
 export default function App() {
+  useNanduModalFocus();
   return (
     <BrowserRouter>
       <Routes>

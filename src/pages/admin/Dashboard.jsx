@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, ArrowRight, Building2, ChevronRight, RefreshCw, Search, X } from "lucide-react";
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
@@ -30,15 +31,67 @@ function Stat({ label, value }) {
   </div>;
 }
 
+function SkeletonBar({ className = "" }) {
+  return <div aria-hidden="true" className={`rounded bg-[#DDE7EE] motion-safe:animate-pulse ${className}`} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div role="status" aria-label="Loading portfolio dashboard" className="space-y-5">
+      <span className="sr-only">Loading properties, rooms and residents…</span>
+      <section className="overflow-hidden rounded-lg border border-[#D7E0E7] bg-[#183B5B]" aria-hidden="true">
+        <div className="flex items-center justify-between border-b border-white/15 px-5 py-4">
+          <div className="h-3 w-44 rounded bg-white/25 motion-safe:animate-pulse" />
+          <div className="h-8 w-20 rounded bg-white/20 motion-safe:animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="border-r border-white/15 px-5 py-5 last:border-0">
+              <div className="h-3 w-20 max-w-full rounded bg-white/20 motion-safe:animate-pulse" />
+              <div className="mt-3 h-9 w-16 rounded bg-white/25 motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="overflow-hidden rounded-lg border border-[#E7E2D8] bg-white" aria-hidden="true">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div><SkeletonBar className="h-6 w-32" /><SkeletonBar className="mt-2 h-3 w-64 max-w-full" /></div>
+          <SkeletonBar className="h-10 w-64 max-w-full" />
+        </div>
+        <div className="h-10 bg-[#E8F0F7]" />
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="flex items-center gap-5 border-t border-[#E7E2D8] px-5 py-4">
+            <SkeletonBar className="h-4 w-48 max-w-[45%]" />
+            <SkeletonBar className="ml-auto h-4 w-14" />
+            <SkeletonBar className="h-4 w-16" />
+            <SkeletonBar className="hidden h-4 w-20 sm:block" />
+          </div>
+        ))}
+      </section>
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_290px]" aria-hidden="true">
+        <section className="overflow-hidden rounded-lg border border-[#E7E2D8] bg-white">
+          <div className="px-5 py-4"><SkeletonBar className="h-6 w-40" /><SkeletonBar className="mt-2 h-3 w-48" /></div>
+          <div className="border-y border-[#E7E2D8] px-5 py-3"><SkeletonBar className="h-8 w-72 max-w-full" /></div>
+          <div className="h-10 bg-[#E8F0F7]" />
+          {Array.from({ length: 3 }, (_, index) => <div key={index} className="flex items-center gap-5 border-t border-[#E7E2D8] px-5 py-4"><SkeletonBar className="h-4 w-24" /><SkeletonBar className="h-4 w-36" /><SkeletonBar className="ml-auto h-4 w-16" /></div>)}
+        </section>
+        <aside className="rounded-lg border border-[#E7E2D8] bg-white p-5"><SkeletonBar className="h-6 w-36" /><SkeletonBar className="mt-4 h-3 w-full" /><SkeletonBar className="mt-2 h-3 w-3/4" /></aside>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshNotice, setRefreshNotice] = useState("");
   const [query, setQuery] = useState("");
   const [selectedBuildingId, setSelectedBuildingId] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [filter, setFilter] = useState("ALL");
   const requestId = useRef(0);
+  const reduceMotion = useReducedMotion();
   const role = getRole()?.replace(/^ROLE_/i, "")?.toUpperCase();
 
   const load = useCallback(async () => {
@@ -48,11 +101,13 @@ export default function AdminDashboard() {
     try {
       const [buildings, rooms, tenants] = await Promise.all([getAllBuildings(), getAllRooms(), getAllTenants()]);
       if (![buildings, rooms, tenants].every(Array.isArray)) throw new Error("Unexpected response from the server.");
-      if (currentId !== requestId.current) return;
+      if (currentId !== requestId.current) return false;
       setSnapshot({ buildings, rooms, tenants, loadedAt: new Date() });
       setSelectedBuildingId((prev) => buildings.some((b) => idOf(b.buildingId) === idOf(prev)) ? prev : idOf(buildings[0]?.buildingId));
+      return true;
     } catch (e) {
       if (currentId === requestId.current) setError(e.response?.data?.message || e.message || "Could not load Overview.");
+      return false;
     } finally {
       if (currentId === requestId.current) setLoading(false);
     }
@@ -62,6 +117,19 @@ export default function AdminDashboard() {
     load();
     return () => { requestId.current += 1; };
   }, [load]);
+
+  const refreshDashboard = async () => {
+    if (loading) return;
+    setRefreshNotice("");
+    const succeeded = await load();
+    if (succeeded) setRefreshNotice("Updated successfully");
+  };
+
+  useEffect(() => {
+    if (!refreshNotice) return undefined;
+    const timer = window.setTimeout(() => setRefreshNotice(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [refreshNotice]);
 
   const overview = useMemo(() => snapshot ? buildOverview(snapshot.buildings, snapshot.rooms, snapshot.tenants) : null, [snapshot]);
   const normalizedQuery = query.trim().toLowerCase();
@@ -91,15 +159,24 @@ export default function AdminDashboard() {
       <button onClick={load} disabled={loading} className={btn}>Retry</button>
     </div>}
 
-    {!snapshot ? <div className="rounded-lg border border-[#E7E2D8] bg-white p-10 text-sm text-[#78716C]" role="status">
-      {loading ? "Loading properties, rooms and residents…" : "No data available. Use Retry to reload."}
-    </div> : <>
+    <AnimatePresence mode="wait" initial={false}>
+    {!snapshot ? (
+      <motion.div key={loading ? "skeleton" : "empty"} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.15 }}>
+        {loading ? <DashboardSkeleton /> : <div className="rounded-lg border border-[#E7E2D8] bg-white p-10 text-sm text-[#78716C]" role="status">No data available. Use Retry to reload.</div>}
+      </motion.div>
+    ) : <motion.div key="dashboard" initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.25, ease: "easeOut" }}>
       <section className="overflow-hidden rounded-lg border border-[#D7E0E7] bg-white shadow-sm" aria-label="Portfolio totals">
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-[#183B5B] px-5 py-3 text-white">
-          <div className="text-xs font-semibold tracking-wide">NANDU / Portfolio operations</div>
-          <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50">
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
+        <div className="flex min-h-14 items-center gap-3 bg-[#183B5B] px-5 py-3 text-white">
+          <div className="min-w-0 flex-1 text-xs font-semibold tracking-wide">NANDU / Portfolio operations</div>
+          <span role="status" aria-live="polite" className="hidden w-36 shrink-0 text-right text-xs font-semibold text-blue-100 sm:block">
+            {refreshNotice || ""}
+          </span>
+          <button type="button" onClick={refreshDashboard} disabled={loading} className="inline-flex min-h-9 w-[116px] shrink-0 items-center justify-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50">
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> {loading ? "Refreshing…" : "Refresh"}
           </button>
+        </div>
+        <div role="status" aria-live="polite" className="min-h-0 bg-[#183B5B] px-5 text-right text-xs font-semibold text-blue-100 sm:hidden">
+          {refreshNotice ? <span className="block pb-2">{refreshNotice}</span> : null}
         </div>
         <dl className="grid grid-cols-2 bg-[#183B5B] sm:grid-cols-4">
           <Stat label="Properties" value={overview.properties.length} />
@@ -175,6 +252,7 @@ export default function AdminDashboard() {
         </aside>
       </section>}
       <p className="mt-4 text-[11px] text-[#78716C]">Availability excludes blocked and under-repair rooms. Data last loaded at {snapshot.loadedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}.</p>
-    </>}
+    </motion.div>}
+    </AnimatePresence>
   </main>;
 }

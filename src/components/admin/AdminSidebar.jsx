@@ -88,8 +88,8 @@ export default function AdminSidebar({
           bg-[#183B5B] text-white
           shadow-xl transition-transform duration-300
 
-          lg:sticky lg:top-0 lg:z-20
-          lg:translate-x-0 lg:shadow-none
+         lg:fixed lg:inset-y-0 lg:left-0 lg:z-20
+         lg:translate-x-0 lg:shadow-none
 
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}

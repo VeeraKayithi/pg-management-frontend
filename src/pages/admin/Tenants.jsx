@@ -1,8 +1,13 @@
+import { AnimatePresence } from "framer-motion";
+import { NanduTableRow } from "../../components/admin/NanduAnimatedRow.jsx";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { History, Plus, X } from "lucide-react";
 import TenantStayHistoryModal from "../../components/admin/TenantStayHistoryModal.jsx";
+import NanduDatePicker from "../../components/admin/NanduDatePicker.jsx";
 
 import AdminHeader from "../../components/admin/AdminHeader.jsx";
+import NanduAlert from "../../components/admin/NanduAlert.jsx";
+import NanduModal from "../../components/admin/NanduModal.jsx";
 import NanduSelect from "../../components/admin/NanduSelect.jsx";
 import { getAllBuildings } from "../../services/buildingService.js";
 import { getAllRooms } from "../../services/roomService.js";
@@ -480,7 +485,7 @@ export default function Tenants() {
         username: normalizedUsername,
       });
 
-      const tenantName = portalAccountTenant.name;
+      const tenantName = portalAccountTenant?.name;
       setPortalAccountTenant(null);
       setPortalUsername("");
       setSuccessMessage(
@@ -544,7 +549,7 @@ export default function Tenants() {
               <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, phone or room" className="mt-1.5 min-h-11 w-full rounded-lg border border-[#CDD8E3] px-3 text-sm outline-none focus:border-[#183B5B]" />
             </label>
             <NanduSelect label="Status" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
-            <NanduSelect label="Building" value={buildingFilter} options={buildingOptions} onChange={(v) => {setBuildingFilter(v); setRoomFilter("");}} />
+            <NanduSelect label="Building" value={buildingFilter} options={buildingOptions} onChange={(v) => { setBuildingFilter(v); setRoomFilter(""); }} />
             <NanduSelect label="Room" value={roomFilter} options={roomOptions} onChange={setRoomFilter} disabled={!roomsForSelectedBuilding.length} />
           </div>
           <div className="mt-3 flex items-center justify-end gap-2">
@@ -552,8 +557,8 @@ export default function Tenants() {
             <button type="button" className={buttonStyle} onClick={loadData} disabled={isLoading}>{isLoading ? "Refreshing..." : "Refresh"}</button>
           </div>
         </section>
-        {error && !isFormOpen && !portalAccountTenant && !departureTenant && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
-        {successMessage && <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{successMessage}</div>}
+        <NanduAlert type="error" message={!isFormOpen && !portalAccountTenant && !departureTenant ? error : ""} onDismiss={() => setError("")} className="mt-4" />
+        <NanduAlert type="success" message={successMessage} onDismiss={() => setSuccessMessage("")} className="mt-4" />
         {accountRecovery && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"><span>Portal account pending for <strong>{accountRecovery.tenantName}</strong>. The tenant record was saved.</span><button type="button" className={buttonStyle} onClick={retryAccountCreation} disabled={isSaving}>{isSaving ? "Creating..." : "Retry account creation"}</button></div>}
 
         <section className="mt-5 overflow-hidden rounded-xl border border-[#D9E3EA] bg-white">
@@ -563,10 +568,12 @@ export default function Tenants() {
                 <tr><th className="px-4 py-3">Resident</th><th className="px-4 py-3">Building / room</th><th className="px-4 py-3">Joining date</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Portal</th><th className="px-4 py-3 text-right">Actions</th></tr>
               </thead>
               <tbody className="divide-y divide-[#E5EBF0]">
+                <AnimatePresence initial={false}>
+
                 {isLoading ? <tr><td colSpan={6} className="px-4 py-12 text-center text-[#64748B]">Loading tenants...</td></tr> : visibleTenants.length === 0 ? <tr><td colSpan={6} className="px-4 py-12 text-center text-[#64748B]">No matching residents. Try clearing filters.</td></tr> : visibleTenants.map((tenant) => {
                   const room = roomFor(tenant);
                   const active = tenant.tenantStatus === "ACTIVE";
-                  return <tr key={tenant.tenantId} className="hover:bg-[#F5F9FC]">
+                  return <NanduTableRow key={tenant.tenantId} className="hover:bg-[#F5F9FC]">
                     <td className="px-4 py-3"><p className="font-semibold text-[#183B5B]">{tenant.name}</p><p className="mt-1 text-xs text-[#64748B]">{tenant.mobileNumber}</p></td>
                     <td className="px-4 py-3"><p>{room?.buildingName || getBuildingName(tenant)}</p><p className="mt-1 text-xs text-[#64748B]">Room {room?.roomNumber || tenant.roomNumber || "—"} · {room?.roomType === "AC" ? "AC" : "Non-AC"}</p></td>
                     <td className="px-4 py-3 text-[#475569]">{tenant.joiningDate || "—"}</td>
@@ -579,19 +586,20 @@ export default function Tenants() {
                       {canManageTenants && active && <button className={buttonStyle} type="button" disabled={processingTenantId === tenant.tenantId} onClick={() => { setError(""); setDepartureTenant(tenant); }}>{processingTenantId === tenant.tenantId ? "Updating..." : "Mark left"}</button>}
                       {!canManageTenants && <span className="text-xs text-[#94A3B8]">View only</span>}
                     </div></td>
-                  </tr>;
+                  </NanduTableRow>;
                 })}
+                              </AnimatePresence>
               </tbody>
             </table>
           </div>
         </section>
       </div>
 
-      {historyTenant && <TenantStayHistoryModal tenant={historyTenant} onClose={() => setHistoryTenant(null)} />}
+      <TenantStayHistoryModal tenant={historyTenant} onClose={() => setHistoryTenant(null)} />
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0E253C]/55 p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) closeForm(); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="tenant-form-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[#CDD8E3] bg-white shadow-2xl">
+      <NanduModal open={isFormOpen} onClose={closeForm} disableClose={isSaving}
+        titleId="tenant-form-title" size="lg"
+        panelClassName="flex flex-col overflow-hidden">
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#D9E3EA] px-5 py-4 sm:px-7">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#52718D]">Resident management</p>
@@ -607,7 +615,16 @@ export default function Tenants() {
                   <label className={FIELD_LABEL}>Tenant name *<input name="name" value={formData.name} onChange={handleFormChange} placeholder="Enter tenant name" required className={INPUT_CLASS} /></label>
                   <label className={FIELD_LABEL}>Mobile number *<input name="mobileNumber" type="tel" value={formData.mobileNumber} onChange={handleFormChange} placeholder="Enter mobile number" required className={INPUT_CLASS} /></label>
                   <label className={FIELD_LABEL}>Email (optional)<input name="email" type="email" value={formData.email} onChange={handleFormChange} placeholder="Leave blank if not provided" className={INPUT_CLASS} /></label>
-                  <label className={FIELD_LABEL}>Actual joining date *<input name="joiningDate" type="date" value={formData.joiningDate} onChange={handleFormChange} required className={INPUT_CLASS} /></label>
+                  <NanduDatePicker
+                    label="Actual joining date *"
+                    value={formData.joiningDate}
+                    onChange={(date) =>
+                      setFormData((current) => ({
+                        ...current,
+                        joiningDate: date,
+                      }))
+                    }
+                  />
                   <div className="min-w-0"><NanduSelect label="Building *" value={formData.buildingId} options={formBuildingOptions} onChange={(value) => setFormData((current) => ({ ...current, buildingId: value, roomId: "" }))} placeholder="Select building" disabled={!buildings.length} /></div>
                   <div className="min-w-0"><NanduSelect label="Room *" value={formData.roomId} options={assignRoomOptions} onChange={(value) => setFormData((current) => ({ ...current, roomId: value }))} placeholder={formData.buildingId ? "Select room" : "Select building first"} disabled={!formData.buildingId || !formRooms.length} /></div>
                 </div>
@@ -627,19 +644,17 @@ export default function Tenants() {
                 <button type="submit" disabled={isSaving} className={PRIMARY}>{isSaving ? "Saving…" : editingTenantId ? "Save changes" : "Save tenant"}</button>
               </div>
             </form>
-          </section>
-        </div>
-      )}
+      </NanduModal>
 
-      {portalAccountTenant && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0E253C]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) closePortalAccountModal(); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="portal-dialog-title" className="w-full max-w-lg rounded-xl border border-[#D9E3EA] bg-white shadow-2xl">
+      <NanduModal open={Boolean(portalAccountTenant)} onClose={closePortalAccountModal}
+        disableClose={isCreatingPortalAccount} titleId="portal-dialog-title"
+        size="md" zIndex={120}>
             <div className="border-b border-[#D9E3EA] px-6 py-5">
               <h2 id="portal-dialog-title" className="text-xl font-bold text-[#183B5B]">Create portal account</h2>
               <p className="mt-1 text-sm text-[#64748B]">Grant the resident access using the existing activation flow.</p>
             </div>
             <div className="space-y-4 px-6 py-5">
-              <div className="rounded-lg bg-[#E8F0F7] p-4 text-sm"><p className="font-semibold text-[#183B5B]">{portalAccountTenant.name}</p><p className="mt-1 break-all text-[#64748B]">{portalAccountTenant.email || "No email provided"}</p></div>
+              <div className="rounded-lg bg-[#E8F0F7] p-4 text-sm"><p className="font-semibold text-[#183B5B]">{portalAccountTenant?.name}</p><p className="mt-1 break-all text-[#64748B]">{portalAccountTenant?.email || "No email provided"}</p></div>
               {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
               <label className={FIELD_LABEL}>Portal username *<input value={portalUsername} onChange={(e) => setPortalUsername(e.target.value)} maxLength={100} autoComplete="off" className={INPUT_CLASS} /></label>
               <p className="text-xs text-[#64748B]">Confirm the registered email with the resident before sending an activation link.</p>
@@ -648,18 +663,15 @@ export default function Tenants() {
               <button type="button" onClick={closePortalAccountModal} disabled={isCreatingPortalAccount} className={SECONDARY}>Cancel</button>
               <button type="button" onClick={handleCreatePortalAccount} disabled={isCreatingPortalAccount} className={PRIMARY}>{isCreatingPortalAccount ? "Creating…" : "Create account"}</button>
             </div>
-          </section>
-        </div>
-      )}
+      </NanduModal>
 
-      {departureTenant && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-[#0E253C]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !processingTenantId) setDepartureTenant(null); }}>
-          <section role="alertdialog" aria-modal="true" aria-labelledby="departure-dialog-title" className="w-full max-w-md rounded-xl border border-[#D9E3EA] bg-white shadow-2xl">
-            <div className="px-6 py-5"><h2 id="departure-dialog-title" className="text-xl font-bold text-[#183B5B]">Mark resident as left?</h2><p className="mt-3 text-sm leading-relaxed text-[#64748B]"><strong className="text-[#183B5B]">{departureTenant.name}</strong> will no longer count as an active resident. Their history will be preserved.</p>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div>
-            <div className="flex justify-end gap-2 border-t border-[#D9E3EA] px-6 py-4"><button type="button" onClick={() => setDepartureTenant(null)} disabled={!!processingTenantId} className={SECONDARY}>Cancel</button><button type="button" onClick={() => handleMarkLeft(departureTenant)} disabled={!!processingTenantId} className="inline-flex min-h-11 items-center rounded-lg bg-[#B33A3A] px-5 text-sm font-semibold text-white hover:bg-[#922D2D] disabled:opacity-50">{processingTenantId ? "Updating…" : "Confirm departure"}</button></div>
-          </section>
-        </div>
-      )}
+      <NanduModal open={Boolean(departureTenant)} onClose={() => setDepartureTenant(null)}
+        disableClose={Boolean(processingTenantId)} titleId="departure-dialog-title"
+        size="sm" role="alertdialog" zIndex={130} closeOnBackdrop={false}>
+
+            <div className="px-6 py-5"><h2 id="departure-dialog-title" className="text-xl font-bold text-[#183B5B]">Mark resident as left?</h2><p className="mt-3 text-sm leading-relaxed text-[#64748B]"><strong className="text-[#183B5B]">{departureTenant?.name}</strong> will no longer count as an active resident. Their history will be preserved.</p>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div>
+            <div className="flex justify-end gap-2 border-t border-[#D9E3EA] px-6 py-4"><button type="button" onClick={() => setDepartureTenant(null)} disabled={!!processingTenantId} className={SECONDARY}>Cancel</button><button type="button" onClick={() => departureTenant && handleMarkLeft(departureTenant)} disabled={!!processingTenantId} className="inline-flex min-h-11 items-center rounded-lg bg-[#B33A3A] px-5 text-sm font-semibold text-white hover:bg-[#922D2D] disabled:opacity-50">{processingTenantId ? "Updating…" : "Confirm departure"}</button></div>
+      </NanduModal>
     </main>
   );
 }
